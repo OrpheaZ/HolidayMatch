@@ -2,15 +2,46 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "./styles.css";
+import heroImage from "./assets/holiday-buddies-hero.png";
 import { families } from "./data/families.js";
 
 const app = document.querySelector("#app");
 const navItems = [
+  { href: "/", label: "Startseite" },
   { href: "/search", label: "Familien finden" },
-  { href: "/login", label: "Anmelden" }
 ];
 
 const icon = (name) => `<i class="bi bi-${name}" aria-hidden="true"></i>`;
+const exampleTrips = [
+  {
+    destination: "Mallorca",
+    dates: "12.–22. Juli 2027",
+    image: "https://images.unsplash.com/photo-1672264430465-781cd9154896?auto=format&fit=crop&w=800&q=82",
+    imageAlt: "Türkisblaue Bucht an Mallorcas Küste",
+    children: [{ age: 5, gender: "Mädchen" }, { age: 7, gender: "Junge" }],
+  },
+  {
+    destination: "Kreta",
+    dates: "4.–14. August 2027",
+    image: "https://images.unsplash.com/photo-1725918568208-7d43d00bf916?auto=format&fit=crop&w=800&q=82",
+    imageAlt: "Strand und Berge an Kretas Küste",
+    children: [{ age: 4, gender: "Mädchen" }, { age: 8, gender: "Mädchen" }],
+  },
+  {
+    destination: "Gardasee",
+    dates: "10.–20. Juli 2027",
+    image: "https://images.unsplash.com/photo-1659971810646-09efbdb6c7d4?auto=format&fit=crop&w=800&q=82",
+    imageAlt: "Blick auf einen See und die umliegenden Berge",
+    children: [{ age: 6, gender: "Junge" }, { age: 9, gender: "Junge" }],
+  },
+  {
+    destination: "Sardinien",
+    dates: "2.–12. August 2027",
+    image: "https://images.unsplash.com/photo-1770412404097-170f88af6386?auto=format&fit=crop&w=800&q=82",
+    imageAlt: "Sardiniens felsige Küste mit klarem türkisfarbenem Wasser",
+    children: [{ age: 6, gender: "Mädchen" }, { age: 8, gender: "Junge" }],
+  },
+];
 
 function header() {
   const links = navItems.map(({ href, label }) =>
@@ -30,8 +61,11 @@ function header() {
             <span class="navbar-toggler-icon"></span>
           </button>
           <div class="collapse navbar-collapse" id="main-navigation">
-            <div class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+            <div class="navbar-nav main-nav mx-lg-auto align-items-lg-center gap-lg-2">
               ${links}
+            </div>
+            <div class="navbar-nav auth-nav align-items-lg-center gap-lg-2">
+              <a class="nav-link" href="/login">Anmelden</a>
               <a class="btn btn-primary nav-cta" href="/register">Kostenlos starten</a>
             </div>
           </div>
@@ -101,27 +135,18 @@ function landingPage() {
       <section class="hero-section">
         <div class="container hero-container">
           <div class="hero-copy">
-            <span class="eyebrow"><span class="eyebrow-dot"></span> Urlaub ist schöner zusammen</span>
-            <h1>Neue Orte.<br>Neue Freunde.<br><span>Unvergessliche Ferien.</span></h1>
-            <p class="hero-description">Finde Familien, die zur gleichen Zeit am gleichen Ort sind – und schenke deinen Kindern Urlaubsmomente, die verbinden.</p>
-            <div class="hero-trust">
-              <div class="avatar-stack" aria-hidden="true">
-                <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=80&q=80" alt="">
-                <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80" alt="">
-                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80" alt="">
-              </div>
-              <span>Gemeinsam unterwegs –<br><strong>Familien wie deine</strong></span>
+            <span class="eyebrow"><span class="eyebrow-dot"></span> Familien. Urlaub. Gemeinsam.</span>
+            <h1>Spielkameraden<br><span>im Urlaub</span> finden.</h1>
+            <p class="hero-description">Verbinde dich mit Familien, die zur gleichen Zeit am gleichen Urlaubsort sind – für gemeinsame Erlebnisse, neue Freundschaften und unvergessliche Ferien.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#familien-suche">Familien entdecken ${icon("arrow-right")}</a>
+              <a class="btn btn-outline-primary hero-secondary" href="#wie-es-funktioniert">So funktioniert&apos;s</a>
             </div>
           </div>
-          <div class="hero-visual" role="img" aria-label="Familie genießt gemeinsam einen sonnigen Tag am Meer">
-            <div class="hero-photo"></div>
-            <div class="floating-note">
-              <span class="note-icon">${icon("heart-fill")}</span>
-              <span><strong>Urlaubsfreunde?</strong><small>Nur ein Match entfernt</small></span>
-            </div>
-            <span class="sun-doodle" aria-hidden="true">✳</span>
+          <div class="hero-visual">
+            <img class="hero-photo" src="${heroImage}" alt="Vier fröhliche Kinder spielen gemeinsam in den Wellen am Strand" fetchpriority="high">
           </div>
-          <div class="search-panel">
+          <div class="search-panel" id="familien-suche">
             <div class="search-heading">
               <div>
                 <span class="search-kicker">Dein nächstes Abenteuer</span>
@@ -134,7 +159,40 @@ function landingPage() {
           </div>
         </div>
       </section>
-      <section class="how-section">
+      <section class="planned-trips-section" aria-labelledby="planned-trips-title">
+        <div class="container">
+          <div class="planned-trips-heading">
+            <h2 id="planned-trips-title">Schon geplante Reisen – sei dabei!</h2>
+            <span class="planned-trips-example-label">${icon("stars")} Fiktive Beispielreisen</span>
+          </div>
+          <div class="planned-trips-grid">
+            ${exampleTrips.map((trip) => `
+              <article class="planned-trip-card">
+                <img class="planned-trip-image" src="${trip.image}" alt="${trip.imageAlt}" loading="lazy" decoding="async">
+                <div class="planned-trip-content">
+                  <h3>${trip.destination}</h3>
+                  <p class="planned-trip-date">${icon("calendar3")}<span>${trip.dates}</span></p>
+                  <div class="planned-trip-children">
+                    ${trip.children.map((child) => `
+                      <span class="planned-trip-child">
+                        ${icon(child.gender === "Mädchen" ? "gender-female" : "gender-male")}
+                        <span>${child.gender} · ${child.age} J.</span>
+                      </span>
+                    `).join("")}
+                  </div>
+                </div>
+              </article>
+            `).join("")}
+            <aside class="planned-trips-cta">
+              <span class="planned-trips-cta-icon">${icon("compass")}</span>
+              <h3>Weitere Reisen entdecken</h3>
+              <p>Finde Familien, die zur gleichen Zeit unterwegs sind.</p>
+              <a class="planned-trips-cta-button" href="/search" aria-label="Familien suchen">${icon("arrow-right")}</a>
+            </aside>
+          </div>
+        </div>
+      </section>
+      <section class="how-section" id="wie-es-funktioniert">
         <div class="container">
           <div class="section-heading text-center">
             <span class="eyebrow">Ganz einfach zusammenfinden</span>
@@ -363,6 +421,22 @@ function mountPage() {
         ? authPage("register")
         : landingPage();
   app.innerHTML = `${header()}${page}${footer()}`;
+
+  if (path === "/") {
+    document.querySelector(".hero-actions")?.addEventListener("click", (event) => {
+      const link = event.target.closest('a[href^="#"]');
+      if (!link) return;
+      const target = document.getElementById(link.hash.slice(1));
+      if (!target) return;
+      event.preventDefault();
+      history.pushState({}, "", link.hash);
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY });
+      root.style.scrollBehavior = previousScrollBehavior;
+    });
+  }
 
   if (path === "/search") {
     const form = document.querySelector("#trip-search-form");

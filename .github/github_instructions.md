@@ -71,8 +71,3 @@ Use Vite/Netlify history fallback configuration so direct navigation and page re
 - Use Supabase Auth for user authentication and authorization.
 - Implement RLS policies to restrict access to data based on user roles and permissions.
 
-
-## Development Workflow
-- Test empty states, invalid input, unauthorized access, overlapping date edge cases, and mobile layouts.
-- Ask before making architectural changes or adding dependencies.
-- When generating code, state which files change and how to run or verify the result.
