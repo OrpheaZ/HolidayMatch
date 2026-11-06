@@ -192,47 +192,120 @@ function landingPage() {
           </div>
         </div>
       </section>
-      <section class="how-section" id="wie-es-funktioniert">
+      <section class="how-section" id="wie-es-funktioniert" aria-labelledby="how-title">
         <div class="container">
           <div class="section-heading text-center">
-            <span class="eyebrow">Ganz einfach zusammenfinden</span>
-            <h2>Ein Urlaub, viele neue <span>Lieblingsmenschen</span></h2>
-            <p>In drei kleinen Schritten zu großen gemeinsamen Erinnerungen.</p>
+            <span class="eyebrow">Gemeinsam planen</span>
+            <h2 id="how-title">So funktioniert <span>HolidayBuddies</span></h2>
+            <p>In vier einfachen Schritten zu gemeinsamen Urlaubsmomenten.</p>
           </div>
-          <div class="row g-4 how-steps">
-            <div class="col-md-4">
-              <article class="step-card">
-                <div class="step-icon step-teal">${icon("search-heart")}</div>
-                <span class="step-number">01</span>
-                <h3>Urlaub eintragen</h3>
-                <p>Verrate uns, wann und wo ihr unterwegs seid – und was deine Kinder gern sprechen.</p>
-              </article>
+          <div class="how-steps">
+            <svg class="how-step-arrows" viewBox="0 0 1200 100" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M205 56 C248 16 350 16 395 50" />
+              <path class="how-step-arrowhead" d="m383 44 12 6-12 5" />
+              <path d="M505 56 C548 16 650 16 695 50" />
+              <path class="how-step-arrowhead" d="m683 44 12 6-12 5" />
+              <path d="M805 56 C848 16 950 16 995 50" />
+              <path class="how-step-arrowhead" d="m983 44 12 6-12 5" />
+            </svg>
+            <article class="how-step">
+              <div class="how-step-visual">
+                <span class="how-step-number" aria-hidden="true">1</span>
+                <div class="how-step-icon-circle">
+                  ${icon("laptop")}
+                  <span class="how-step-icon-accent">${icon("person-plus-fill")}</span>
+                </div>
+              </div>
+              <h3>Kostenlos registrieren</h3>
+              <p>Erstelle in wenigen Sekunden dein Familienkonto.</p>
+            </article>
+            <article class="how-step">
+              <div class="how-step-visual">
+                <span class="how-step-number" aria-hidden="true">2</span>
+                <div class="how-step-icon-circle">
+                  ${icon("calendar-event")}
+                  <span class="how-step-icon-accent">${icon("airplane-fill")}</span>
+                </div>
+              </div>
+              <h3>Deine Reise eintragen</h3>
+              <p>Gib Reiseziel, Reisezeitraum und das Alter deiner Kinder an.</p>
+            </article>
+            <article class="how-step">
+              <div class="how-step-visual">
+                <span class="how-step-number" aria-hidden="true">3</span>
+                <div class="how-step-icon-circle">
+                  ${icon("people-fill")}
+                  <span class="how-step-icon-accent">${icon("search")}</span>
+                </div>
+              </div>
+              <h3>Passende Familien finden</h3>
+              <p>Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind.</p>
+            </article>
+            <article class="how-step">
+              <div class="how-step-visual">
+                <span class="how-step-number" aria-hidden="true">4</span>
+                <div class="how-step-icon-circle">
+                  ${icon("chat-heart")}
+                  <span class="how-step-icon-accent">${icon("heart-fill")}</span>
+                </div>
+              </div>
+              <h3>In Kontakt kommen</h3>
+              <p>Tauscht euch aus, plant gemeinsame Aktivitäten und freut euch auf einen noch schöneren Urlaub!</p>
+            </article>
+          </div>
+          <div class="benefits-bar" aria-label="Vorteile von HolidayBuddies">
+            <div class="benefit-item">
+              <span class="benefit-icon">${icon("people")}</span>
+              <div>
+                <h3>Gleichgesinnte Familien</h3>
+                <p>Familien mit Kindern in ähnlichem Alter</p>
+              </div>
             </div>
-            <div class="col-md-4">
-              <article class="step-card">
-                <div class="step-icon step-peach">${icon("people")}</div>
-                <span class="step-number">02</span>
-                <h3>Familien entdecken</h3>
-                <p>Finde passende Familien mit Kindern in ähnlichem Alter und einer gemeinsamen Sprache.</p>
-              </article>
+            <div class="benefit-item">
+              <span class="benefit-icon">${icon("calendar-event")}</span>
+              <div>
+                <h3>Gleiche Reisezeit &amp; Ort</h3>
+                <p>Gemeinsame Urlaubsmomente</p>
+              </div>
             </div>
-            <div class="col-md-4">
-              <article class="step-card">
-                <div class="step-icon step-yellow">${icon("sun")}</div>
-                <span class="step-number">03</span>
-                <h3>Zusammen losziehen</h3>
-                <p>Knüpft ganz entspannt Kontakt und macht euren Urlaub gemeinsam noch bunter.</p>
-              </article>
+            <div class="benefit-item">
+              <span class="benefit-icon">${icon("shield-check")}</span>
+              <div>
+                <h3>Sicher &amp; vertrauensvoll</h3>
+                <p>Eltern entscheiden selbst, mit wem sie Kontakt aufnehmen</p>
+              </div>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-icon">${icon("heart")}</span>
+              <div>
+                <h3>Mehr als nur Urlaub</h3>
+                <p>Neue Freundschaften – oft über die Reise hinaus</p>
+              </div>
             </div>
           </div>
-          <div class="bottom-cta">
-            <div>
-              <span class="eyebrow">Euer nächstes Abenteuer wartet</span>
-              <h2>Gemeinsam unterwegs?</h2>
-              <p>Erstelle jetzt kostenlos dein Familienprofil.</p>
+        </div>
+      </section>
+      <section class="family-trip-cta-section" aria-labelledby="family-trip-cta-title">
+        <div class="container family-trip-cta-container">
+          <div class="family-trip-cta-blob">
+            <div class="family-trip-cta-flight" aria-hidden="true">
+              <svg viewBox="0 0 150 90" preserveAspectRatio="none">
+                <path d="M9 71 C39 86 48 20 82 43 S119 60 132 23" />
+              </svg>
+              ${icon("airplane-fill")}
             </div>
-            <a class="btn btn-primary btn-lg" href="/register">Jetzt kostenlos starten ${icon("arrow-right")}</a>
+            <h2 id="family-trip-cta-title">Bereit für deinen nächsten Familienurlaub?</h2>
+            <a class="btn btn-light family-trip-cta-button" href="/register">Jetzt kostenlos starten ${icon("arrow-right")}</a>
           </div>
+          <svg class="family-trip-sandcastle" viewBox="0 0 190 150" aria-hidden="true">
+            <path d="M14 139V84h22V56h29v28h16V39h40v45h16V56h29v28h23v55H14Z" fill="#efd5a2" />
+            <path d="M42 56v-9h8v9m12 0v-9h8v9m26-17V28h10v11m14 0V28h10v11m23 17v-9h8v9m12 0v-9h8v9" fill="#efd5a2" stroke="#d3ae79" stroke-width="2" />
+            <path d="M78 139v-27a18 18 0 0 1 36 0v27" fill="#b99463" />
+            <path d="M44 101h12v11H44zm95 0h12v11h-12z" fill="#c6a171" />
+            <path d="M99 28V8" stroke="#9c7d52" stroke-width="3" />
+            <path d="M101 9h30l-13 9 13 8h-30z" fill="#ef8750" />
+            <path d="M3 139c24-11 34-7 54 0 26-10 42-7 62 0 21-9 43-9 68 0v11H3z" fill="#f5e2c1" />
+          </svg>
         </div>
       </section>
     </main>`;
