@@ -712,9 +712,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .landing-date-error { margin-top: 8px !important; color: #a5342b !important; }
 .shared-search .child-age-list { display: grid; gap: 7px; }
 .shared-search .child-age-entry { display: flex; gap: 8px; padding: 6px 8px; }
-.shared-search .child-age-entry label { flex: 1; margin: 0; color: #355a54; font-size: .8rem; }
-.shared-search .child-age-entry input[type="number"] { width: 65px; min-height: 34px; padding: 5px; font-size: .85rem; }
-.shared-search .child-age-entry button { width: 32px; height: 32px; font-size: .8rem; }
+.shared-search .child-age-entry .child-entry-label { flex: 1 0 100%; color: #355a54; font-size: .8rem; font-weight: 700; }
+.shared-search .child-age-entry { flex-wrap: wrap; }
+.shared-search .child-age-entry input[type="number"] { flex: 1 1 55px; width: 55px; min-height: 34px; padding: 5px; font-size: .85rem; }
+.shared-search .child-age-entry .child-gender { flex: 1 1 100px; width: auto; min-width: 100px; min-height: 34px; padding: 5px 25px 5px 8px; border: 1px solid #dceae6; border-radius: 8px; background-color: #fff; font-size: .8rem; }
+.shared-search .child-age-entry button { flex: 0 0 32px; width: 32px; height: 32px; font-size: .8rem; }
 .shared-search .add-child-age { margin-top: 12px; font-size: .8rem; }
 .shared-search .language-options { display: grid; grid-template-columns: 1fr; gap: 4px; }
 .shared-search .language-options label { min-height: 32px; margin: 0; gap: 10px; font-size: .84rem; }
@@ -764,6 +766,15 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .family-filter-card.shared-search .search-field:focus-within { z-index: 2; }
 .family-filter-card.shared-search .search-submit { min-height: 50px; }
 .family-filter-card.shared-search .family-filter-reset { grid-column: auto; margin: 0 auto; }
+.trip-dialog .shared-search .trip-form-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.trip-dialog .shared-search .search-field > label { margin: 0 0 7px; }
+.trip-dialog .shared-search .landing-destination-control input,
+.trip-dialog .shared-search .trip-region-field input { min-height: 32px; padding: 0; border: 0; background: transparent; }
+.trip-dialog .shared-search .landing-popover { position: static; width: 100%; max-width: none; margin-top: 10px; box-shadow: none; }
+.trip-dialog .shared-search .landing-suggestions[hidden], .trip-dialog .shared-search .landing-map[hidden] { display: none; }
+.trip-dialog .shared-search .child-age-entry input[type="number"] { width: 55px; min-height: 34px; padding: 5px; border: 0; background: transparent; }
+.trip-dialog .shared-search .language-options label { display: flex; align-items: center; margin: 0; }
+.trip-dialog .shared-search .language-options input { min-height: 0; padding: 0; }
 .shared-search .landing-child-options > label { margin: 0 0 5px; font-size: .78rem; }
 .shared-search .landing-child-options > select { min-height: 38px; margin-bottom: 12px; padding: 7px; border: 1px solid #dceae6; border-radius: 8px; font-size: .85rem; }
 @media (max-width: 767.98px) {

@@ -53,7 +53,7 @@ let myTrips = [
     region: "Alcúdia, Mallorca",
     start: "2027-07-12",
     end: "2027-07-22",
-    children: [5, 8],
+    children: [{ age: 5, gender: "" }, { age: 8, gender: "" }],
     languages: ["Deutsch", "Englisch"],
     image: exampleTrips[0].image,
     visible: true,
@@ -64,7 +64,7 @@ let myTrips = [
     region: "Chania, Kreta",
     start: "2026-08-04",
     end: "2026-08-14",
-    children: [6],
+    children: [{ age: 6, gender: "" }],
     languages: ["Deutsch"],
     image: exampleTrips[1].image,
     visible: false,
@@ -117,14 +117,27 @@ function footer() {
     </footer>`;
 }
 
-function searchForm({ reset = false } = {}) {
-  const legacyAge = new URLSearchParams(location.search).get("age");
+function childEntry(index) {
+  return `<div class="child-age-entry">
+    <span class="child-entry-label">Kind ${index}</span>
+    <input name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind ${index}">
+    <select class="form-select form-select-sm child-gender" name="childGender" aria-label="Geschlecht von Kind ${index} (optional)">
+      <option value="">Optional</option>
+      <option value="Junge">Junge</option>
+      <option value="Mädchen">Mädchen</option>
+    </select>
+    <button type="button" data-action="remove-child-age" aria-label="Kind ${index} entfernen">${icon("x-lg")}</button>
+  </div>`;
+}
+
+function searchForm({ reset = false, trip = false } = {}) {
+  const legacyAge = trip ? null : new URLSearchParams(location.search).get("age");
   return `
-    <form class="trip-search" id="trip-search-form">
+    ${trip ? '<div class="trip-search trip-form-fields">' : '<form class="trip-search" id="trip-search-form">'}
       <div class="search-field destination-field">
         <label for="destination">${icon("geo-alt")} Reiseziel oder Hotel</label>
         <div class="landing-destination-control">
-          <input id="destination" name="destination" type="search" placeholder="Ziel oder Hotel eingeben" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions">
+          <input id="destination" name="destination" type="search" placeholder="Ziel oder Hotel eingeben" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions"${trip ? " required" : ""}>
           <button type="button" class="landing-map-toggle" data-action="map" aria-label="Reiseziele auf einer Karte auswählen" aria-expanded="false" aria-controls="destination-map">${icon("map")}</button>
         </div>
         <div class="landing-suggestions landing-popover" id="destination-suggestions" role="listbox" aria-label="Vorschläge für Reiseziel oder Hotel" hidden></div>
@@ -143,6 +156,10 @@ function searchForm({ reset = false } = {}) {
           <p>Wähle einen Ort aus, um ihn in die Suche zu übernehmen.</p>
         </div>
       </div>
+      ${trip ? `<div class="search-field trip-region-field">
+        <label for="trip-region">${icon("geo-alt")} Ort / Region</label>
+        <input id="trip-region" name="region" type="text" placeholder="z. B. Alcúdia, Mallorca" required>
+      </div>` : ""}
       <div class="search-field date-field">
         <span class="search-field-label" id="landing-date-label">${icon("calendar3")} Reisezeitraum</span>
         <details class="landing-picker date-picker">
@@ -159,9 +176,9 @@ function searchForm({ reset = false } = {}) {
               <div class="landing-calendar-days" aria-label="Kalendertage"></div>
             </div>
             <label for="start-date">Anreise</label>
-            <input id="start-date" name="start" type="date">
+            <input id="start-date" name="start" type="date"${trip ? " required" : ""}>
             <label for="end-date">Abreise</label>
-            <input id="end-date" name="end" type="date">
+            <input id="end-date" name="end" type="date"${trip ? " required" : ""}>
             <p class="landing-date-error" id="landing-date-error" role="alert" hidden></p>
             <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
           </div>
@@ -172,7 +189,7 @@ function searchForm({ reset = false } = {}) {
         <details class="landing-picker child-picker">
           <summary aria-labelledby="landing-child-label landing-child-summary"><span id="landing-child-summary" data-child-summary>Alle Altersgruppen</span>${icon("chevron-down")}</summary>
           <div class="landing-popover landing-child-options">
-            <p>Gib das Alter deiner Kinder an.</p>
+            <p>Gib das Alter deiner Kinder an. Junge oder Mädchen ist optional.</p>
             ${["3-5", "6-8", "9-12"].includes(legacyAge) ? `
               <label for="legacy-age">Bisheriger Altersbereich</label>
               <select id="legacy-age" name="age">
@@ -183,11 +200,7 @@ function searchForm({ reset = false } = {}) {
               </select>
             ` : ""}
             <div class="child-age-list" id="child-age-list">
-              <div class="child-age-entry">
-                <label for="age">Kind 1</label>
-                <input id="age" name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind 1">
-                <button type="button" data-action="remove-child-age" aria-label="Kind 1 entfernen">${icon("x-lg")}</button>
-              </div>
+              ${childEntry(1)}
             </div>
             <button class="add-child-age" type="button" data-action="add-child-age">${icon("plus-circle")} Kind hinzufügen</button>
             <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
@@ -207,11 +220,11 @@ function searchForm({ reset = false } = {}) {
           </div>
         </details>
       </div>
-      <button class="btn btn-primary search-submit" type="submit" aria-label="Familien suchen">
+      ${trip ? "" : `<button class="btn btn-primary search-submit" type="submit" aria-label="Familien suchen">
         ${icon("search")}<span class="search-button-label">Familien suchen</span>
-      </button>
+      </button>`}
       ${reset ? '<button class="family-filter-reset" type="reset">Filter zurücksetzen</button>' : ""}
-    </form>`;
+    ${trip ? "</div>" : "</form>"}`;
 }
 
 function landingPage() {
@@ -405,7 +418,7 @@ function formatDate(date) {
 }
 
 function familyCard(family, index) {
-  const children = family.children.map((age) => `${age} Jahre`).join(", ");
+  const children = family.children.map((child) => `${child.age} Jahre`).join(", ");
   const date = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric" });
   const startDate = new Date(`${family.start}T12:00:00`);
   const endDate = new Date(`${family.end}T12:00:00`);
@@ -566,18 +579,7 @@ function myTripsPage() {
             <button class="trip-dialog-close" type="button" data-trip-action="close" aria-label="Dialog schließen">${icon("x-lg")}</button>
           </div>
           <input type="hidden" name="id">
-          <label for="trip-destination">Reiseziel</label>
-          <input id="trip-destination" name="destination" type="text" placeholder="z. B. Mallorca" required>
-          <label for="trip-region">Ort / Region</label>
-          <input id="trip-region" name="region" type="text" placeholder="z. B. Alcúdia, Mallorca" required>
-          <div class="trip-form-dates">
-            <div><label for="trip-start">Anreise</label><input id="trip-start" name="start" type="date" required></div>
-            <div><label for="trip-end">Abreise</label><input id="trip-end" name="end" type="date" required></div>
-          </div>
-          <label for="trip-children">Alter der Kinder</label>
-          <input id="trip-children" name="children" type="text" placeholder="z. B. 5, 8" required>
-          <label for="trip-languages">Sprachen</label>
-          <input id="trip-languages" name="languages" type="text" placeholder="z. B. Deutsch, Englisch" required>
+          <div class="shared-search">${searchForm({ trip: true })}</div>
           <p class="trip-form-message" id="trip-form-message" role="status" hidden></p>
           <div class="trip-dialog-actions">
             <button class="btn btn-outline-primary" type="button" data-trip-action="close">Abbrechen</button>
@@ -601,7 +603,7 @@ function renderMyTrips() {
   const today = new Date().toISOString().slice(0, 10);
   return myTrips.map((trip) => {
     const past = trip.end < today;
-    const children = trip.children.map((age) => `${age}`).join(" und ");
+    const children = trip.children.map((child) => `${child.age}${child.gender ? ` (${child.gender})` : ""}`).join(" und ");
     const query = new URLSearchParams({
       destination: trip.destination,
       start: trip.start,
@@ -717,7 +719,12 @@ function filteredFamilies() {
   const destination = params.get("destination")?.toLocaleLowerCase("de") ?? "";
   const language = params.get("language") ?? "";
   const ageRange = params.get("age") ?? "";
-  const childAges = params.getAll("childAge").map(Number).filter(Number.isInteger).sort((a, b) => a - b);
+  const childAges = params.getAll("childAge");
+  const childGenders = params.getAll("childGender");
+  const requestedChildren = Array.from({ length: Math.max(childAges.length, childGenders.length) }, (_, index) => ({
+    age: childAges[index] !== undefined && childAges[index] !== "" ? Number(childAges[index]) : null,
+    gender: childGenders[index] || "",
+  })).filter((child) => child.age !== null || child.gender);
   const languages = params.getAll("language");
   const start = params.get("start");
   const end = params.get("end");
@@ -729,14 +736,16 @@ function filteredFamilies() {
     const selectedLanguages = languages.length ? languages : language ? [language] : [];
     const hasLanguage = !selectedLanguages.length
       || selectedLanguages.some((selectedLanguage) => family.languages.includes(selectedLanguage));
-    const matchingChildAges = [...family.children].sort((a, b) => a - b);
-    const hasRequestedChildAges = childAges.every((requestedAge) => {
-      const matchIndex = matchingChildAges.findIndex((familyAge) => Math.abs(familyAge - requestedAge) <= 2);
-      if (matchIndex === -1) return false;
-      matchingChildAges.splice(matchIndex, 1);
-      return true;
-    });
-    const hasAge = hasRequestedChildAges && family.children.some((age) => age >= minAge && age <= maxAge);
+    const matchesChildren = (index, available) => {
+      if (index === requestedChildren.length) return true;
+      const requested = requestedChildren[index];
+      return available.some((child, childIndex) =>
+        (requested.age === null || Math.abs(child.age - requested.age) <= 2)
+        && (!requested.gender || child.gender === requested.gender)
+        && matchesChildren(index + 1, available.filter((_, i) => i !== childIndex)));
+    };
+    const hasAge = matchesChildren(0, family.children)
+      && family.children.some((child) => child.age >= minAge && child.age <= maxAge);
     const datesOverlap = (!start || family.end >= start) && (!end || family.start <= end);
     return hasDestination && hasLanguage && hasAge && datesOverlap;
   });
@@ -771,7 +780,7 @@ function closeLandingPopovers(form, except = null) {
   }
 }
 
-function setupLandingSearch(form) {
+function setupLandingSearch(form, { fromQuery = true } = {}) {
   const childAgeList = form.querySelector("#child-age-list");
   const destination = form.querySelector("#destination");
   const suggestions = form.querySelector("#destination-suggestions");
@@ -805,11 +814,13 @@ function setupLandingSearch(form) {
   }
 
   function updateSummary() {
-    const ages = [...childAgeList.querySelectorAll('input[name="childAge"]')]
-      .map((input) => input.value).filter((value) => value !== "");
+    const children = [...childAgeList.querySelectorAll(".child-age-entry")].map((entry) => ({
+      age: entry.querySelector('input[name="childAge"]').value,
+      gender: entry.querySelector('select[name="childGender"]').value,
+    })).filter((child) => child.age !== "" || child.gender);
     const languages = [...form.querySelectorAll('input[name="language"]:checked')].map((input) => input.value);
     const ageRange = form.querySelector('select[name="age"]')?.value;
-    const ageSummary = ages.length ? `${ages.length} ${ages.length === 1 ? "Kind" : "Kinder"}: ${ages.join(", ")} J.` : "";
+    const ageSummary = children.map((child) => [child.age !== "" ? `${child.age} J.` : "", child.gender].filter(Boolean).join(" · ")).join(", ");
     form.querySelector("[data-child-summary]").textContent = [ageSummary, ageRange ? `${ageRange.replace("-", "–")} Jahre` : ""]
       .filter(Boolean).join(" · ") || "Alle Altersgruppen";
     form.querySelector("[data-language-summary]").textContent = languages.length ? languages.join(", ") : "Alle Sprachen";
@@ -834,12 +845,10 @@ function setupLandingSearch(form) {
     if (childAgeList.children.length >= 6) return null;
     const index = childAgeList.children.length + 1;
     const entry = document.createElement("div");
-    entry.className = "child-age-entry";
-    entry.innerHTML = `<label>Kind ${index}</label>
-      <input name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind ${index}">
-      <button type="button" data-action="remove-child-age" aria-label="Kind ${index} entfernen">${icon("x-lg")}</button>`;
-    childAgeList.append(entry);
-    const input = entry.querySelector("input");
+    entry.innerHTML = childEntry(index);
+    const child = entry.firstElementChild;
+    childAgeList.append(child);
+    const input = child.querySelector("input");
     if (focus) input.focus();
     form.querySelector('[data-action="add-child-age"]').disabled = childAgeList.children.length >= 6;
     return input;
@@ -891,8 +900,9 @@ function setupLandingSearch(form) {
     if (removeButton) {
       removeButton.closest(".child-age-entry").remove();
       childAgeList.querySelectorAll(".child-age-entry").forEach((entry, index) => {
-        entry.querySelector("label").textContent = `Kind ${index + 1}`;
+        entry.querySelector(".child-entry-label").textContent = `Kind ${index + 1}`;
         entry.querySelector("input").setAttribute("aria-label", `Alter von Kind ${index + 1}`);
+        entry.querySelector("select").setAttribute("aria-label", `Geschlecht von Kind ${index + 1} (optional)`);
         entry.querySelector("button")?.setAttribute("aria-label", `Kind ${index + 1} entfernen`);
       });
       form.querySelector('[data-action="add-child-age"]').disabled = false;
@@ -960,12 +970,19 @@ function setupLandingSearch(form) {
     }
   }, true);
 
-  let ageIndex = 0;
-  for (const [key, value] of new URLSearchParams(location.search)) {
-    if (key === "childAge") {
-      const input = childAgeList.querySelectorAll('input[name="childAge"]')[ageIndex] ?? addChild(false);
-      if (input) { input.value = value; ageIndex += 1; }
-    } else if (key === "language") {
+  const params = new URLSearchParams(fromQuery ? location.search : "");
+  const ages = params.getAll("childAge");
+  const genders = params.getAll("childGender");
+  for (let index = 0; index < Math.max(ages.length, genders.length); index += 1) {
+    const input = childAgeList.querySelectorAll('input[name="childAge"]')[index] ?? addChild(false);
+    if (input) {
+      input.value = ages[index] ?? "";
+      input.closest(".child-age-entry").querySelector("select").value = genders[index] ?? "";
+    }
+  }
+  for (const [key, value] of params) {
+    if (key === "childAge" || key === "childGender") continue;
+    if (key === "language") {
       let input = [...form.querySelectorAll('input[name="language"]')].find((checkbox) => checkbox.value === value);
       if (!input && value) {
         const label = document.createElement("label");
@@ -993,6 +1010,27 @@ function setupLandingSearch(form) {
   }
   renderCalendar();
   updateSummary();
+  return {
+    setTrip(trip) {
+      childAgeList.innerHTML = childEntry(1);
+      form.querySelector('[data-action="add-child-age"]').disabled = false;
+      (trip?.children ?? []).forEach((child, index) => {
+        const input = childAgeList.querySelectorAll('input[name="childAge"]')[index] ?? addChild(false);
+        input.value = child.age;
+        input.closest(".child-age-entry").querySelector("select").value = child.gender;
+      });
+      form.querySelectorAll('input[name="language"]').forEach((input) => {
+        input.checked = trip?.languages.includes(input.value) ?? false;
+      });
+      if (start.value || end.value) {
+        const [year, month] = (start.value || end.value).split("-").map(Number);
+        calendarMonth = new Date(year, month - 1, 1);
+      }
+      closeLandingPopovers(form);
+      renderCalendar();
+      updateSummary();
+    },
+  };
 }
 
 function mountPage() {
@@ -1051,7 +1089,7 @@ function mountPage() {
     const destinationInput = form.elements.namedItem("destination");
     const startInput = form.elements.namedItem("start");
     const endInput = form.elements.namedItem("end");
-    const childrenInput = form.elements.namedItem("children");
+    const tripSearch = setupLandingSearch(form, { fromQuery: false });
 
     document.querySelector(".my-trips-page").addEventListener("click", (event) => {
       const button = event.target.closest("[data-trip-action]");
@@ -1071,14 +1109,12 @@ function mountPage() {
         form.elements.namedItem("region").value = trip?.region ?? "";
         form.elements.namedItem("start").value = trip?.start ?? "";
         form.elements.namedItem("end").value = trip?.end ?? "";
-        form.elements.namedItem("children").value = trip?.children.join(", ") ?? "";
-        form.elements.namedItem("languages").value = trip?.languages.join(", ") ?? "";
+        tripSearch.setTrip(trip);
         document.querySelector("#trip-dialog-title").textContent =
           trip ? "Reise bearbeiten" : "Neue Reise erstellen";
         document.querySelector("#trip-form-message").hidden = true;
         destinationInput.setCustomValidity("");
         endInput.setCustomValidity("");
-        childrenInput.setCustomValidity("");
         dialog.showModal();
         destinationInput.focus();
         return;
@@ -1103,15 +1139,29 @@ function mountPage() {
           ? "Das Abreisedatum muss nach der Anreise liegen."
           : ""
       );
-      const ages = childrenInput.value.split(",").map((age) => Number(age.trim()));
-      childrenInput.setCustomValidity(
-        ages.some((age) => !Number.isInteger(age) || age < 0 || age > 18)
-          ? "Bitte gib Kinderalter als Zahlen zwischen 0 und 18 ein, getrennt durch Kommas."
-          : ""
-      );
       if (!form.reportValidity()) return;
 
       const formData = new FormData(form);
+      const children = [...form.querySelectorAll(".child-age-entry")].map((entry) => ({
+        age: entry.querySelector('input[name="childAge"]').value,
+        gender: entry.querySelector('select[name="childGender"]').value,
+      })).filter((child) => child.age !== "" || child.gender);
+      const languages = formData.getAll("language").map(String);
+      const message = document.querySelector("#trip-form-message");
+      if (!children.length || children.some((child) => child.age === "")) {
+        message.textContent = "Bitte gib für mindestens ein Kind und für jede ausgewählte Angabe ein Alter ein.";
+        message.hidden = false;
+        form.querySelector(".child-picker").open = true;
+        form.querySelector('input[name="childAge"]')?.focus();
+        return;
+      }
+      if (!languages.length) {
+        message.textContent = "Bitte wähle mindestens eine Sprache aus.";
+        message.hidden = false;
+        form.querySelector(".language-picker").open = true;
+        form.querySelector('input[name="language"]').focus();
+        return;
+      }
       const id = Number(formData.get("id"));
       const existingTrip = myTrips.find((trip) => trip.id === id);
       const destination = formData.get("destination").toString().trim();
@@ -1121,8 +1171,8 @@ function mountPage() {
         region: formData.get("region").toString().trim(),
         start: formData.get("start").toString(),
         end: formData.get("end").toString(),
-        children: ages,
-        languages: formData.get("languages").toString().split(",").map((language) => language.trim()).filter(Boolean),
+        children: children.map((child) => ({ ...child, age: Number(child.age) })),
+        languages,
         image: destination.toLocaleLowerCase("de").includes("kreta")
           ? exampleTrips[1].image
           : exampleTrips[0].image,
@@ -1161,8 +1211,17 @@ function mountPage() {
     const formData = new FormData(event.currentTarget);
     const params = new URLSearchParams();
     for (const [key, value] of formData) {
+      if (key === "childAge" || key === "childGender") continue;
       if (value) params.append(key, value.toString());
     }
+    form.querySelectorAll(".child-age-entry").forEach((entry) => {
+      const age = entry.querySelector('input[name="childAge"]').value;
+      const gender = entry.querySelector('select[name="childGender"]').value;
+      if (age !== "" || gender) {
+        params.append("childAge", age);
+        params.append("childGender", gender);
+      }
+    });
     navigate(`/search${params.size ? `?${params}` : ""}`);
   });
 
@@ -1183,7 +1242,7 @@ function mountPage() {
 }
 
 document.addEventListener("click", (event) => {
-  const searchForm = document.querySelector("#trip-search-form");
+  const searchForm = document.querySelector("#trip-search-form, #trip-form");
   if (searchForm && !event.composedPath().includes(searchForm)) closeLandingPopovers(searchForm);
   const link = event.target.closest('a[href^="/"]');
   if (!link || link.target || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -1193,7 +1252,7 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  const form = document.querySelector("#trip-search-form");
+  const form = document.querySelector("#trip-search-form, #trip-form");
   if (!form) return;
   const picker = document.activeElement.closest(".landing-picker");
   const focusTarget = picker?.querySelector("summary")
