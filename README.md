@@ -43,12 +43,18 @@ and audited.
 
 ### Frontend integration
 
-The current frontend still uses mock data. Configure the Supabase URL and
-publishable key, integrate Supabase Auth and profile creation, then connect trip
-CRUD, the public trip RPC, and the contact-request workflow. A privacy-reviewed
-matching API for child age and languages is still needed; the public trip RPC
-deliberately does not expose those private fields. Test RLS with separate normal
-and admin accounts before using real family data.
+The family search uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
+and calls `search_public_families()`; never expose a service-role key through a
+`VITE_` variable. The RPC only returns public trips with explicit per-trip
+`trip_search_consent`, their destination, dates, languages, and children's
+approximate ages and optional genders. It does not expose names, birth years,
+email addresses, or internal user IDs. Results and filters are public, so
+combining their fields can make families identifiable. The migration grants
+consent only to marked demo accounts; all other trips remain unshared by default.
+Real users need an informed, revocable opt-in interface before publishing their
+family details. Integrating Auth, trip CRUD, consent management, and the contact
+workflow remains future work; the current login and trips are still prototypes.
+Test RLS and consent with separate accounts before using real family data.
 
 ### Development demo data
 

@@ -5,7 +5,8 @@ import "./styles.css";
 import familySearchHero from "./assets/familien_suchen.png";
 import myTripsHero from "./assets/meiner_eisen.png";
 import landingMobileHero from "./assets/holidaybuddies_opener_mb.png";
-import { families } from "./data/families.js";
+import { getSupabase } from "./lib/supabase.js";
+import { filterFamilies } from "./lib/family-search.js";
 
 const app = document.querySelector("#app");
 const navItems = [
@@ -417,36 +418,37 @@ function formatDate(date) {
     .format(new Date(`${date}T12:00:00`));
 }
 
-function familyCard(family, index) {
-  const children = family.children.map((child) => `${child.age} Jahre`).join(", ");
+function familyCard(family) {
+  const children = family.children.map((child) => `ca. ${child.age} Jahre${child.gender ? ` (${child.gender})` : ""}`).join(", ");
   const date = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric" });
-  const startDate = new Date(`${family.start}T12:00:00`);
-  const endDate = new Date(`${family.end}T12:00:00`);
+  const startDate = new Date(`${family.start_date}T12:00:00`);
+  const endDate = new Date(`${family.end_date}T12:00:00`);
   const sameMonth = startDate.getMonth() === endDate.getMonth()
     && startDate.getFullYear() === endDate.getFullYear();
   const dateRange = sameMonth
     ? `${new Intl.DateTimeFormat("de-DE", { day: "numeric" }).format(startDate)}.–${date.format(endDate)}`
     : `${date.format(startDate)} – ${date.format(endDate)}`;
-  const isFavorite = favoriteFamilyIds.has(index);
+  const isFavorite = favoriteFamilyIds.has(family.trip_reference);
+  const image = exampleTrips.find((trip) => family.destination.includes(trip.destination))?.image ?? exampleTrips[0].image;
+  const location = [family.region, family.destination, family.country].filter(Boolean).join(", ");
   return `
-    <article class="family-result-card${family.matchScore >= 90 ? " is-strong-match" : ""}">
-      <img class="family-result-image" src="${family.image}" alt="Landschaft bei ${escapeHTML(family.destination)}" loading="lazy" decoding="async">
+    <article class="family-result-card">
+      <img class="family-result-image" src="${image}" alt="Symbolbild eines Urlaubsortes" loading="lazy" decoding="async">
       <div class="family-result-content">
         <div class="family-result-heading">
-          <div class="family-result-name">${icon("people-fill")}<h3>${escapeHTML(family.name)}</h3></div>
-          ${family.matchScore >= 90 ? `<span class="family-result-match">${icon("stars")} Passt zu deiner Reise</span>` : ""}
-          <button class="family-favorite${isFavorite ? " is-favorite" : ""}" type="button" data-favorite="${index}" aria-label="${isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}: ${escapeHTML(family.name)}" aria-pressed="${isFavorite}">
+          <div class="family-result-name">${icon("people-fill")}<h3>Familie</h3></div>
+          <button class="family-favorite${isFavorite ? " is-favorite" : ""}" type="button" data-favorite="${escapeHTML(family.trip_reference)}" aria-label="${isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}: Familie in ${escapeHTML(family.destination)}" aria-pressed="${isFavorite}">
             ${icon(isFavorite ? "heart-fill" : "heart")}
           </button>
         </div>
-        <div class="family-result-location">${icon("geo-alt-fill")}<span>${escapeHTML(family.region)}, ${escapeHTML(family.destination.split(", ")[0])}</span></div>
+        <div class="family-result-location">${icon("geo-alt-fill")}<span>${escapeHTML(location)}</span></div>
         <div class="family-result-facts">
           <span>${icon("calendar3")}<span>${dateRange}</span></span>
-          <span>${icon("people-fill")}<span>${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}</span></span>
-          <span>${icon("globe2")}<span>${escapeHTML(family.languages.join(", "))}</span></span>
+          <span>${icon("people-fill")}<span>${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</span></span>
+          <span>${icon("globe2")}<span>${escapeHTML(family.languages.join(", ") || "Keine Sprachen angegeben")}</span></span>
         </div>
-        <p class="family-result-note">${escapeHTML(family.note)}</p>
-        <a class="family-contact-button" href="/login" aria-label="Anmelden, um ${escapeHTML(family.name)} zu kontaktieren">
+        <p class="family-result-note">Kinderalter anhand des Geburtsjahres geschätzt.</p>
+        <a class="family-contact-button" href="/login" aria-label="Anmelden, um eine Familie zu kontaktieren">
           ${icon("chat-dots")} Kontakt anfragen <span class="family-contact-hint">Anmeldung erforderlich</span>
         </a>
       </div>
@@ -492,12 +494,13 @@ function searchPage() {
             </div>
             <label class="family-sort-control" for="sort-results">Sortieren nach
               <select id="sort-results" aria-label="Suchergebnisse sortieren">
-                <option value="relevance">Beste Übereinstimmung</option>
+                <option value="relevance">Standard</option>
                 <option value="soonest">Reisedatum (aufsteigend)</option>
               </select>
             </label>
           </div>
           <div class="family-results-list" id="family-results"></div>
+          <p id="family-results-error" role="alert" hidden></p>
           <div class="empty-state d-none" id="empty-results">
             <span>${icon("search")}</span>
             <h3>Keine Familien gefunden</h3>
@@ -714,56 +717,16 @@ function navigate(url) {
   window.scrollTo(0, 0);
 }
 
-function filteredFamilies() {
-  const params = new URLSearchParams(location.search);
-  const destination = params.get("destination")?.toLocaleLowerCase("de") ?? "";
-  const language = params.get("language") ?? "";
-  const ageRange = params.get("age") ?? "";
-  const childAges = params.getAll("childAge");
-  const childGenders = params.getAll("childGender");
-  const requestedChildren = Array.from({ length: Math.max(childAges.length, childGenders.length) }, (_, index) => ({
-    age: childAges[index] !== undefined && childAges[index] !== "" ? Number(childAges[index]) : null,
-    gender: childGenders[index] || "",
-  })).filter((child) => child.age !== null || child.gender);
-  const languages = params.getAll("language");
-  const start = params.get("start");
-  const end = params.get("end");
-  const [minAge, maxAge] = ageRange ? ageRange.split("-").map(Number) : [0, Infinity];
-
-  return families.filter((family) => {
-    const hasDestination = !destination || `${family.destination} ${family.region} ${family.hotel ?? ""}`
-      .toLocaleLowerCase("de").includes(destination);
-    const selectedLanguages = languages.length ? languages : language ? [language] : [];
-    const hasLanguage = !selectedLanguages.length
-      || selectedLanguages.some((selectedLanguage) => family.languages.includes(selectedLanguage));
-    const matchesChildren = (index, available) => {
-      if (index === requestedChildren.length) return true;
-      const requested = requestedChildren[index];
-      return available.some((child, childIndex) =>
-        (requested.age === null || Math.abs(child.age - requested.age) <= 2)
-        && (!requested.gender || child.gender === requested.gender)
-        && matchesChildren(index + 1, available.filter((_, i) => i !== childIndex)));
-    };
-    const hasAge = matchesChildren(0, family.children)
-      && family.children.some((child) => child.age >= minAge && child.age <= maxAge);
-    const datesOverlap = (!start || family.end >= start) && (!end || family.start <= end);
-    return hasDestination && hasLanguage && hasAge && datesOverlap;
-  });
-}
-
-function renderFamilies() {
-  const results = document.querySelector("#family-results");
-  if (!results) return;
-  const matches = filteredFamilies();
-  if (document.querySelector("#sort-results")?.value === "soonest") {
-    matches.sort((first, second) => first.start.localeCompare(second.start));
-  } else {
-    matches.sort((first, second) => second.matchScore - first.matchScore);
+async function loadPublicFamilies() {
+  const client = getSupabase();
+  const families = new Map();
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client.rpc("search_public_families").range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    for (const family of data) families.set(family.trip_reference, family);
+    if (data.length < pageSize) return [...families.values()];
   }
-  results.innerHTML = matches.map((family) => familyCard(family, families.indexOf(family))).join("");
-  document.querySelector("#results-count").textContent =
-    `${matches.length} ${matches.length === 1 ? "Familie" : "Familien"} passend zu eurer Suche`;
-  document.querySelector("#empty-results").classList.toggle("d-none", matches.length > 0);
 }
 
 function closeLandingPopovers(form, except = null) {
@@ -787,9 +750,7 @@ function setupLandingSearch(form, { fromQuery = true } = {}) {
   const map = form.querySelector("#destination-map");
   const start = form.elements.namedItem("start");
   const end = form.elements.namedItem("end");
-  const values = [...new Set(families.flatMap((family) => [
-    family.destination.split(",")[0], family.region, family.hotel,
-  ]).filter(Boolean))];
+  let values = [...new Set(exampleTrips.map((trip) => trip.destination))];
   const dateFormatter = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
   const monthFormatter = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
   const dayFormatter = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -1011,6 +972,9 @@ function setupLandingSearch(form, { fromQuery = true } = {}) {
   renderCalendar();
   updateSummary();
   return {
+    setDestinations(families) {
+      values = [...new Set(families.flatMap((family) => [family.destination, family.region]).filter(Boolean))];
+    },
     setTrip(trip) {
       childAgeList.innerHTML = childEntry(1);
       form.querySelector('[data-action="add-child-age"]').disabled = false;
@@ -1047,7 +1011,7 @@ function mountPage() {
   app.innerHTML = `${header()}${page}${footer()}`;
 
   const searchFormElement = document.querySelector("#trip-search-form");
-  if (searchFormElement) setupLandingSearch(searchFormElement);
+  const searchControls = searchFormElement ? setupLandingSearch(searchFormElement) : null;
 
   if (path === "/") {
     document.querySelector(".hero-actions")?.addEventListener("click", (event) => {
@@ -1066,7 +1030,35 @@ function mountPage() {
   }
 
   if (path === "/search") {
-    renderFamilies();
+    const results = document.querySelector("#family-results");
+    const count = document.querySelector("#results-count");
+    const errorMessage = document.querySelector("#family-results-error");
+    const empty = document.querySelector("#empty-results");
+    let loadedFamilies = null;
+    const renderFamilies = () => {
+      if (!loadedFamilies) return;
+      const matches = filterFamilies(loadedFamilies, new URLSearchParams(location.search));
+      if (document.querySelector("#sort-results").value === "soonest") {
+        matches.sort((first, second) => first.start_date.localeCompare(second.start_date));
+      }
+      results.innerHTML = matches.map(familyCard).join("");
+      count.textContent = `${matches.length} ${matches.length === 1 ? "Familie" : "Familien"} passend zu eurer Suche`;
+      empty.classList.toggle("d-none", matches.length > 0);
+    };
+    count.textContent = "Familien werden geladen …";
+    loadPublicFamilies().then((families) => {
+      if (!results.isConnected) return;
+      loadedFamilies = families;
+      searchControls.setDestinations(families);
+      renderFamilies();
+    }).catch((error) => {
+      if (!results.isConnected) return;
+      console.error("Familien konnten nicht geladen werden:", error);
+      count.textContent = "";
+      errorMessage.textContent = "Die Familien konnten nicht geladen werden. Bitte prüfe deine Verbindung und versuche es erneut.";
+      errorMessage.hidden = false;
+    });
+    searchFormElement.addEventListener("family-search-update", renderFamilies);
     searchFormElement.addEventListener("reset", (event) => {
       event.preventDefault();
       navigate("/search");
@@ -1074,7 +1066,7 @@ function mountPage() {
     document.querySelector("#family-results").addEventListener("click", (event) => {
       const button = event.target.closest("[data-favorite]");
       if (!button) return;
-      const familyId = Number(button.dataset.favorite);
+      const familyId = button.dataset.favorite;
       if (favoriteFamilyIds.has(familyId)) favoriteFamilyIds.delete(familyId);
       else favoriteFamilyIds.add(familyId);
       renderFamilies();
@@ -1222,7 +1214,13 @@ function mountPage() {
         params.append("childGender", gender);
       }
     });
-    navigate(`/search${params.size ? `?${params}` : ""}`);
+    const url = `/search${params.size ? `?${params}` : ""}`;
+    if (location.pathname === "/search") {
+      history.pushState({}, "", url);
+      form.dispatchEvent(new Event("family-search-update"));
+    } else {
+      navigate(url);
+    }
   });
 
   document.querySelector("#auth-form")?.addEventListener("submit", (event) => {

@@ -37,7 +37,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .hero-copy { position: relative; z-index: 1; padding: 10px 0 24px; }
 .eyebrow { display: inline-flex; align-items: center; gap: .55rem; color: var(--teal); font-size: .78rem; font-weight: 800; letter-spacing: .075em; text-transform: uppercase; }
 .eyebrow-dot { width: 8px; height: 8px; border-radius: 99px; background: #f19b6b; }
-.hero-copy h1 { margin: 20px 0 18px; color: var(--ink); font-size: clamp(3.2rem, 5.2vw, 4.65rem); font-weight: 800; letter-spacing: -.072em; line-height: 1.02; }
+.hero-copy h1 { margin: 20px 0 18px; color: var(--ink); font-size: clamp(3.2rem, 5.2vw, 4.65rem); font-weight: 400; letter-spacing: -.072em; line-height: 1.02; }
 .hero-copy h1 span, .section-heading h2 span, .results-intro h1 span { color: var(--teal); }
 .hero-description { max-width: 500px; margin: 0; color: #667875; font-size: 1.02rem; line-height: 1.7; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 27px; }
