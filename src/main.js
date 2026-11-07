@@ -2,8 +2,8 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "./styles.css";
-import heroImage from "./assets/holiday-buddies-hero.png";
-import familySearchHero from "./assets/family-search-hero.png";
+import familySearchHero from "./assets/familien_suchen.png";
+import myTripsHero from "./assets/meiner_eisen.png";
 import landingMobileHero from "./assets/holidaybuddies_opener_mb.png";
 import { families } from "./data/families.js";
 
@@ -235,7 +235,7 @@ function landingPage() {
               <span>Spielkameraden<br>für deine Kinder</span>
             </div>
             <div class="hero-benefit">
-              <span class="hero-benefit-icon">${icon("umbrella")}</span>
+              <span class="hero-benefit-icon">${icon("check2")}</span>
               <span>Mehr Entspannung<br>für dich</span>
             </div>
             <div class="hero-benefit">
@@ -388,25 +388,12 @@ function landingPage() {
       </section>
       <section class="family-trip-cta-section" aria-labelledby="family-trip-cta-title">
         <div class="container family-trip-cta-container">
-          <div class="family-trip-cta-blob">
-            <div class="family-trip-cta-flight" aria-hidden="true">
-              <svg viewBox="0 0 150 90" preserveAspectRatio="none">
-                <path d="M9 71 C39 86 48 20 82 43 S119 60 132 23" />
-              </svg>
-              ${icon("airplane-fill")}
-            </div>
+          <div class="family-trip-cta-content">
+            <span class="family-trip-cta-icon" aria-hidden="true">${icon("sun")}</span>
             <h2 id="family-trip-cta-title">Bereit für deinen nächsten Familienurlaub?</h2>
-            <a class="btn btn-light family-trip-cta-button" href="/register">Jetzt kostenlos starten ${icon("arrow-right")}</a>
+            <p>Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind.</p>
+            <a class="btn btn-primary family-trip-cta-button" href="/register">Jetzt kostenlos starten ${icon("arrow-right")}</a>
           </div>
-          <svg class="family-trip-sandcastle" viewBox="0 0 190 150" aria-hidden="true">
-            <path d="M14 139V84h22V56h29v28h16V39h40v45h16V56h29v28h23v55H14Z" fill="#efd5a2" />
-            <path d="M42 56v-9h8v9m12 0v-9h8v9m26-17V28h10v11m14 0V28h10v11m23 17v-9h8v9m12 0v-9h8v9" fill="#efd5a2" stroke="#d3ae79" stroke-width="2" />
-            <path d="M78 139v-27a18 18 0 0 1 36 0v27" fill="#b99463" />
-            <path d="M44 101h12v11H44zm95 0h12v11h-12z" fill="#c6a171" />
-            <path d="M99 28V8" stroke="#9c7d52" stroke-width="3" />
-            <path d="M101 9h30l-13 9 13 8h-30z" fill="#ef8750" />
-            <path d="M3 139c24-11 34-7 54 0 26-10 42-7 62 0 21-9 43-9 68 0v11H3z" fill="#f5e2c1" />
-          </svg>
         </div>
       </section>
     </main>`;
@@ -453,26 +440,32 @@ function familyCard(family, index) {
     </article>`;
 }
 
+function pageHero({ variant, image, alt, eyebrow, heading, highlight, description }) {
+  return `
+    <section class="page-hero page-hero-${variant}">
+      <img class="page-hero-image" src="${image}" alt="${alt}" fetchpriority="high">
+      <div class="container page-hero-inner">
+        <div class="page-hero-copy">
+          <span class="eyebrow"><span class="eyebrow-dot"></span> ${eyebrow}</span>
+          <h1>${heading}<br><span>${highlight}</span></h1>
+          <p>${description}</p>
+        </div>
+      </div>
+    </section>`;
+}
+
 function searchPage() {
   return `
     <main id="main-content" class="results-page">
-      <section class="family-search-hero">
-        <div class="container family-search-hero-inner">
-          <div class="family-search-hero-copy">
-            <span class="eyebrow"><span class="eyebrow-dot"></span> Familien finden</span>
-            <h1>Familien finden<br><span>für deinen Urlaub.</span></h1>
-            <p>Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind und lernt euch kennen.</p>
-          </div>
-          <div class="family-search-hero-visual">
-            <img src="${familySearchHero}" alt="Vier Kinder spielen gemeinsam im klaren Wasser an einem sonnigen Strand" fetchpriority="high">
-            <span class="family-search-flight" aria-hidden="true">
-              <svg viewBox="0 0 130 45"><path d="M3 36C27 3 48 43 75 19S105 34 127 4"/></svg>
-              ${icon("airplane-fill")}
-            </span>
-            <span class="family-search-hero-tag">${icon("people-fill")} Gemeinsam mehr erleben!</span>
-          </div>
-        </div>
-      </section>
+      ${pageHero({
+        variant: "search",
+        image: familySearchHero,
+        alt: "Vier Kinder bauen gemeinsam eine Sandburg am Strand",
+        eyebrow: "Familien finden",
+        heading: "Finde Familien,",
+        highlight: "die zu euch passen.",
+        description: "Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind und lernt euch kennen.",
+      })}
       <section class="container family-search-layout" aria-label="Familien suchen und Ergebnisse">
         <aside class="family-filter-card shared-search" aria-labelledby="family-filter-title">
           <h2 id="family-filter-title">${icon("funnel")} Suche anpassen</h2>
@@ -532,23 +525,19 @@ function tripDuration(start, end) {
 function myTripsPage() {
   return `
     <main id="main-content" class="my-trips-page">
-      <section class="my-trips-hero">
-        <div class="container my-trips-hero-inner">
-          <div class="my-trips-intro">
-            <span class="eyebrow"><span class="eyebrow-dot"></span> Meine Reisen</span>
-            <h1>Meine Reisen</h1>
-            <p>Hier findest du deine geplanten Urlaube. Lege neue Reisen an und entscheide, welche Informationen du teilen möchtest.</p>
-            <button class="btn btn-primary my-trips-create" type="button" data-trip-action="new">
-              ${icon("plus-lg")} Neue Reise erstellen
-            </button>
-          </div>
-          <div class="my-trips-hero-visual">
-            <img src="${heroImage}" alt="Kinder entdecken gemeinsam das Meer im Urlaub" fetchpriority="high">
-            <span class="my-trips-sun-rays" aria-hidden="true">〟</span>
-          </div>
-        </div>
-      </section>
+      ${pageHero({
+        variant: "trips",
+        image: myTripsHero,
+        alt: "Eine Familie genießt gemeinsam den Ausblick auf das Meer",
+        eyebrow: "Meine Reisen",
+        heading: "Deine Reisen.",
+        highlight: "Deine Vorfreude.",
+        description: "Hier findest du deine geplanten Urlaube. Lege neue Reisen an und entscheide, welche Informationen du teilen möchtest.",
+      })}
       <section class="container my-trips-content" aria-label="Deine Reisen">
+        <button class="btn btn-primary my-trips-create" type="button" data-trip-action="new">
+          ${icon("plus-lg")} Neue Reise hinzufügen
+        </button>
         <div id="my-trips-list" class="my-trips-list">
           ${renderMyTrips()}
         </div>
