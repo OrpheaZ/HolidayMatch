@@ -610,10 +610,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .family-results-heading { gap: 7px; }
 }
 
-.hero-section { position: relative; display: flex; min-height: 450px; align-items: stretch; overflow: hidden; isolation: isolate; padding: 26px 0 22px; background: #eaf9f8 url("./assets/holidaybuddies_opener.png") right top / cover no-repeat; }
+.hero-section { position: relative; display: flex; align-items: stretch; overflow: hidden; isolation: isolate; padding: 26px 0 22px; background: #eaf9f8 url("./assets/holidaybuddies_opener.png") right top / cover no-repeat; }
 .hero-section::before { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(255,255,255,.99) 0%, rgba(255,255,255,.94) 27%, rgba(255,255,255,.65) 43%, rgba(255,255,255,.12) 65%, rgba(255,255,255,0) 78%), linear-gradient(0deg, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 30%); content: ""; pointer-events: none; }
 .hero-section .hero-photo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.hero-container { position: static; display: flex; min-height: 402px; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.hero-container { position: static; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .hero-copy { position: relative; z-index: 1; max-width: 570px; margin-top: 0; padding: 0; }
 .hero-copy .eyebrow { color: #173a58; font-size: .77rem; letter-spacing: .045em; }
 .hero-copy .eyebrow-dot { width: 8px; height: 8px; background: #f5a129; }
@@ -633,8 +633,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .hero-search-section .search-panel { margin-top: 0; }
 
 @media (max-width: 991.98px) {
-  .hero-section { min-height: 450px; padding: 24px 0; background-position: right top; }
-  .hero-container { min-height: 402px; gap: 18px; }
+  .hero-section { padding: 24px 0; background-position: right top; }
+  .hero-container { gap: 18px; }
   .hero-copy { max-width: 520px; margin-top: 0; }
   .hero-copy h1 { font-size: clamp(2.85rem, 5.3vw, 3.4rem); }
   .hero-benefits { width: min(760px, 100%); }
@@ -666,7 +666,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .hero-section { padding: 24px 0 58px; }
-.hero-container { min-height: 368px; }
 .hero-benefits { width: min(665px, 100%); align-self: flex-start; padding: 6px 8px; background: rgba(255,255,255,.86); box-shadow: 0 8px 24px rgba(32,75,78,.1); }
 .hero-benefit { justify-content: flex-start; gap: 8px; padding: 5px 9px; font-size: .77rem; }
 .hero-benefit-icon { width: 40px; height: 40px; font-size: 1.35rem; }
@@ -742,7 +741,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 @media (max-width: 991.98px) {
   .hero-section { padding: 24px 0 58px; }
-  .hero-container { min-height: 368px; }
   .hero-benefits { width: min(640px, 100%); }
   .hero-benefit { padding: 5px 8px; }
 }
@@ -784,4 +782,33 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .shared-search .landing-popover { animation: none; }
   .shared-search .search-field, .shared-search .search-submit { transition: none; }
   .shared-search .search-submit:hover { transform: none; }
+}
+
+@media (min-width: 768px) {
+  .hero-section {
+    min-height: clamp(450px, 36vw, 620px);
+    padding: clamp(24px, 3vw, 48px) 0;
+    background-size: auto 100%;
+    background-position: right center;
+  }
+  .hero-section::before {
+    background: linear-gradient(90deg, #fff 0%, rgba(255,255,255,.97) 25%, rgba(255,255,255,.6) 40%, transparent 58%);
+  }
+  .hero-container {
+    min-height: 0;
+    justify-content: center;
+    gap: clamp(14px, 1.5vw, 22px);
+  }
+  .hero-copy { max-width: min(570px, 45%); }
+  .hero-benefits { width: min(665px, 50%); margin-top: 0; }
+  .hero-search-section { padding-top: clamp(16px, 2vw, 28px); }
+  .hero-search-section .search-panel { margin-top: 0; }
+}
+@media (min-width: 768px) and (max-width: 1199.98px) {
+  .hero-section { background-size: cover; background-position: right bottom; }
+  .hero-copy { max-width: 48%; }
+  .hero-copy h1 { font-size: clamp(2.1rem, 3.9vw, 3.15rem); }
+  .hero-benefits { width: 60%; }
+  .hero-benefit { gap: 5px; padding: 5px; font-size: clamp(.68rem, 1.15vw, .75rem); }
+  .hero-benefit-icon { width: 34px; height: 34px; font-size: 1.1rem; }
 }
