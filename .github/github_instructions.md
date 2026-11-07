@@ -71,3 +71,14 @@ Use Vite/Netlify history fallback configuration so direct navigation and page re
 - Use Supabase Auth for user authentication and authorization.
 - Implement RLS policies to restrict access to data based on user roles and permissions.
 
+
+## Builds
+Bitte führe während der laufenden Frontend-Entwicklung nicht nach jeder Änderung automatisch npm run build aus.
+Verwende für die Vorschau den bestehenden Vite-Entwicklungsserver (npm run dev).
+Führe einen Produktionsbuild nur durch, wenn:
+-wirklich darum bitte,
+-größere technische Änderungen vorgenommen wurden,
+-oder eine Prüfung vor dem Deployment erforderlich ist.
+
+Bei reinen HTML- und CSS-Designänderungen ist kein Produktionsbuild notwendig.
+Vermeide außerdem unnötige Neustarts des Entwicklungsservers.
