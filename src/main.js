@@ -4,6 +4,7 @@ import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "./styles.css";
 import heroImage from "./assets/holiday-buddies-hero.png";
 import familySearchHero from "./assets/family-search-hero.png";
+import landingMobileHero from "./assets/holidaybuddies_opener_mb.png";
 import { families } from "./data/families.js";
 
 const app = document.querySelector("#app");
@@ -116,9 +117,10 @@ function footer() {
     </footer>`;
 }
 
-function searchForm({ compact = false } = {}) {
+function searchForm({ reset = false } = {}) {
+  const legacyAge = new URLSearchParams(location.search).get("age");
   return `
-    <form class="trip-search${compact ? " trip-search-compact" : ""}" id="trip-search-form">
+    <form class="trip-search" id="trip-search-form">
       <div class="search-field destination-field">
         <label for="destination">${icon("geo-alt")} Reiseziel oder Hotel</label>
         <div class="landing-destination-control">
@@ -171,6 +173,15 @@ function searchForm({ compact = false } = {}) {
           <summary aria-labelledby="landing-child-label landing-child-summary"><span id="landing-child-summary" data-child-summary>Alle Altersgruppen</span>${icon("chevron-down")}</summary>
           <div class="landing-popover landing-child-options">
             <p>Gib das Alter deiner Kinder an.</p>
+            ${["3-5", "6-8", "9-12"].includes(legacyAge) ? `
+              <label for="legacy-age">Bisheriger Altersbereich</label>
+              <select id="legacy-age" name="age">
+                <option value="">Kein Altersbereich</option>
+                <option value="3-5">3–5 Jahre</option>
+                <option value="6-8">6–8 Jahre</option>
+                <option value="9-12">9–12 Jahre</option>
+              </select>
+            ` : ""}
             <div class="child-age-list" id="child-age-list">
               <div class="child-age-entry">
                 <label for="age">Kind 1</label>
@@ -199,6 +210,7 @@ function searchForm({ compact = false } = {}) {
       <button class="btn btn-primary search-submit" type="submit" aria-label="Familien suchen">
         ${icon("search")}<span class="search-button-label">Familien suchen</span>
       </button>
+      ${reset ? '<button class="family-filter-reset" type="reset">Filter zurücksetzen</button>' : ""}
     </form>`;
 }
 
@@ -216,41 +228,24 @@ function landingPage() {
               <a class="btn btn-outline-primary hero-secondary" href="#wie-es-funktioniert">So funktioniert&apos;s</a>
             </div>
           </div>
-          <img class="hero-photo" src="${familySearchHero}" alt="Vier fröhliche Kinder spielen gemeinsam im Wasser am Strand" fetchpriority="high">
+          <img class="hero-photo" src="${landingMobileHero}" alt="Vier fröhliche Kinder spielen gemeinsam im Wasser am Strand" fetchpriority="high">
           <div class="hero-benefits" aria-label="Deine Vorteile">
             <div class="hero-benefit">
-              <span class="hero-benefit-icon">
-                <svg viewBox="0 0 48 48" aria-hidden="true">
-                  <circle cx="16" cy="13" r="5" />
-                  <circle cx="32" cy="13" r="5" />
-                  <path d="M7 36v-5a9 9 0 0 1 18 0v5m-4-7 3 12m-8-12-3 12m13-12 3 12m8-12-3 12M25 25a8 8 0 0 1 16 0v7H25z" />
-                </svg>
-              </span>
+              <span class="hero-benefit-icon">${icon("people")}</span>
               <span>Spielkameraden<br>für deine Kinder</span>
             </div>
             <div class="hero-benefit">
-              <span class="hero-benefit-icon">
-                <svg viewBox="0 0 48 48" aria-hidden="true">
-                  <circle cx="35" cy="9" r="4" />
-                  <path d="M5 18a17 17 0 0 1 34 0H5zm17 0v4m-5 4 17 9m-19 2 17-11m-20 13h25M9 34l5 4m22-4-5 4" />
-                </svg>
-              </span>
+              <span class="hero-benefit-icon">${icon("umbrella")}</span>
               <span>Mehr Entspannung<br>für dich</span>
             </div>
             <div class="hero-benefit">
-              <span class="hero-benefit-icon">
-                <svg viewBox="0 0 48 48" aria-hidden="true">
-                  <path d="M24 39S6 29 6 17a10 10 0 0 1 18-6 10 10 0 0 1 18 6c0 12-18 22-18 22z" />
-                  <path d="m34 22 9 3v7c0 5-4 8-9 10-5-2-9-5-9-10v-7l9-3z" />
-                  <path d="m31 32 2 2 4-5" />
-                </svg>
-              </span>
-              <span>Ein sorgloser und entspannter<br>Familienurlaub</span>
+              <span class="hero-benefit-icon">${icon("shield-check")}</span>
+              <span>Ein sorgloser<br>Familienurlaub</span>
             </div>
           </div>
         </div>
       </section>
-      <section class="hero-search-section" id="familien-suche">
+      <section class="hero-search-section shared-search" id="familien-suche">
         <div class="container">
           <div class="search-panel">
             <div class="search-heading">
@@ -479,54 +474,9 @@ function searchPage() {
         </div>
       </section>
       <section class="container family-search-layout" aria-label="Familien suchen und Ergebnisse">
-        <aside class="family-filter-card" aria-labelledby="family-filter-title">
+        <aside class="family-filter-card shared-search" aria-labelledby="family-filter-title">
           <h2 id="family-filter-title">${icon("funnel")} Suche anpassen</h2>
-          <form id="family-search-form">
-            <div class="family-filter-field">
-              <label for="family-destination">${icon("geo-alt")} Reiseziel oder Hotel</label>
-              <select id="family-destination" name="destination">
-                <option value="">Alle Reiseziele</option>
-                <option value="Mallorca">Mallorca</option>
-                <option value="Alcúdia Bay Resort">Alcúdia Bay Resort</option>
-                <option value="Gardasee">Gardasee</option>
-                <option value="Hotel am Gardasee">Hotel am Gardasee</option>
-                <option value="Kreta">Kreta</option>
-                <option value="Chania Beach Resort">Chania Beach Resort</option>
-                <option value="Sardinien">Sardinien</option>
-                <option value="Pollença Sea View Hotel">Pollença Sea View Hotel</option>
-              </select>
-            </div>
-            <div class="family-filter-field">
-              <label for="family-start">${icon("calendar3")} Reisezeitraum</label>
-              <div class="family-date-range">
-                <input id="family-start" name="start" type="date" aria-label="Früheste Anreise">
-                <span aria-hidden="true">–</span>
-                <input id="family-end" name="end" type="date" aria-label="Späteste Abreise">
-              </div>
-            </div>
-            <div class="family-filter-field">
-              <label for="family-age">${icon("people")} Alter der Kinder</label>
-              <select id="family-age" name="age">
-                <option value="">Alle Altersgruppen</option>
-                <option value="3-5">3–5 Jahre</option>
-                <option value="6-8">6–8 Jahre</option>
-                <option value="9-12">9–12 Jahre</option>
-              </select>
-            </div>
-            <div class="family-filter-field">
-              <label for="family-language">${icon("globe2")} Sprache</label>
-              <select id="family-language" name="language">
-                <option value="">Alle Sprachen</option>
-                <option>Deutsch</option>
-                <option>Englisch</option>
-                <option>Spanisch</option>
-                <option>Türkisch</option>
-              </select>
-            </div>
-            <p class="family-filter-error" id="family-filter-error" role="alert" hidden></p>
-            <button class="family-search-submit" type="submit">${icon("search")} Familien suchen</button>
-            <button class="family-filter-reset" type="reset">Filter zurücksetzen</button>
-          </form>
+          ${searchForm({ reset: true })}
         </aside>
         <div class="family-results-panel">
           <div class="family-results-heading">
@@ -869,9 +819,10 @@ function setupLandingSearch(form) {
     const ages = [...childAgeList.querySelectorAll('input[name="childAge"]')]
       .map((input) => input.value).filter((value) => value !== "");
     const languages = [...form.querySelectorAll('input[name="language"]:checked')].map((input) => input.value);
-    form.querySelector("[data-child-summary]").textContent = ages.length
-      ? `${ages.length} ${ages.length === 1 ? "Kind" : "Kinder"}: ${ages.join(", ")} J.`
-      : "Alle Altersgruppen";
+    const ageRange = form.querySelector('select[name="age"]')?.value;
+    const ageSummary = ages.length ? `${ages.length} ${ages.length === 1 ? "Kind" : "Kinder"}: ${ages.join(", ")} J.` : "";
+    form.querySelector("[data-child-summary]").textContent = [ageSummary, ageRange ? `${ageRange.replace("-", "–")} Jahre` : ""]
+      .filter(Boolean).join(" · ") || "Alle Altersgruppen";
     form.querySelector("[data-language-summary]").textContent = languages.length ? languages.join(", ") : "Alle Sprachen";
     const format = (value) => dateFormatter.format(new Date(`${value}T12:00:00`));
     form.querySelector("[data-date-summary]").textContent = start.value && end.value
@@ -1026,8 +977,22 @@ function setupLandingSearch(form) {
       const input = childAgeList.querySelectorAll('input[name="childAge"]')[ageIndex] ?? addChild(false);
       if (input) { input.value = value; ageIndex += 1; }
     } else if (key === "language") {
-      const input = [...form.querySelectorAll('input[name="language"]')].find((checkbox) => checkbox.value === value);
+      let input = [...form.querySelectorAll('input[name="language"]')].find((checkbox) => checkbox.value === value);
+      if (!input && value) {
+        const label = document.createElement("label");
+        input = document.createElement("input");
+        input.type = "checkbox";
+        input.name = "language";
+        input.value = value;
+        const text = document.createElement("span");
+        text.textContent = value;
+        label.append(input, text);
+        form.querySelector(".language-options").insertBefore(label, form.querySelector(".language-options .landing-picker-done"));
+      }
       if (input) input.checked = true;
+    } else if (key === "age") {
+      const field = form.querySelector('select[name="age"]');
+      if (field) field.value = value;
     } else {
       const field = form.elements.namedItem(key);
       if (field) field.value = value;
@@ -1054,10 +1019,10 @@ function mountPage() {
         : landingPage();
   app.innerHTML = `${header()}${page}${footer()}`;
 
-  if (path === "/") {
-    const searchFormElement = document.querySelector("#trip-search-form");
-    setupLandingSearch(searchFormElement);
+  const searchFormElement = document.querySelector("#trip-search-form");
+  if (searchFormElement) setupLandingSearch(searchFormElement);
 
+  if (path === "/") {
     document.querySelector(".hero-actions")?.addEventListener("click", (event) => {
       const link = event.target.closest('a[href^="#"]');
       if (!link) return;
@@ -1074,60 +1039,8 @@ function mountPage() {
   }
 
   if (path === "/search") {
-    const form = document.querySelector("#family-search-form");
-    const searchParams = new URLSearchParams(location.search);
-    const selectedLanguages = searchParams.getAll("language");
-    const selectedAges = searchParams.getAll("childAge");
-    const destinationValue = searchParams.get("destination");
-    const destinationSelect = form.elements.namedItem("destination");
-    if (destinationValue && ![...destinationSelect.options].some((option) => option.value === destinationValue)) {
-      destinationSelect.add(new Option(destinationValue, destinationValue));
-    }
-    const languageSelect = form.elements.namedItem("language");
-    if (selectedLanguages[0] && ![...languageSelect.options].some((option) => option.value === selectedLanguages[0])) {
-      languageSelect.add(new Option(selectedLanguages[0], selectedLanguages[0]));
-    }
-    for (const [key, value] of searchParams) {
-      const field = form.elements.namedItem(key);
-      if (field && key !== "language") field.value = value;
-    }
-    if (selectedLanguages.length) languageSelect.value = selectedLanguages[0];
-    if (selectedAges.length || selectedLanguages.length > 1) {
-      const notice = document.createElement("p");
-      notice.className = "family-filter-carryover";
-      notice.textContent = [
-        selectedAges.length ? `Kinderalter: ${selectedAges.join(", ")} Jahre` : "",
-        selectedLanguages.length > 1 ? `Sprachen: ${selectedLanguages.join(", ")}` : "",
-        "Diese Kriterien bleiben beim erneuten Suchen erhalten. Mit „Filter zurücksetzen“ entfernst du sie.",
-      ].filter(Boolean).join(" · ");
-      form.insertBefore(notice, form.querySelector("#family-filter-error"));
-    }
-    let languagesChanged = false;
-    let agesChanged = false;
-    languageSelect.addEventListener("change", () => { languagesChanged = true; });
-    form.elements.namedItem("age").addEventListener("change", () => { agesChanged = true; });
     renderFamilies();
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const start = form.elements.namedItem("start").value;
-      const end = form.elements.namedItem("end").value;
-      const error = document.querySelector("#family-filter-error");
-      if (start && end && end < start) {
-        error.textContent = "Das Enddatum muss nach dem Startdatum liegen.";
-        error.hidden = false;
-        form.elements.namedItem("end").focus();
-        return;
-      }
-      error.hidden = true;
-      const params = new URLSearchParams();
-      for (const [key, value] of new FormData(form)) {
-        if (value) params.set(key, value.toString());
-      }
-      if (!agesChanged) selectedAges.forEach((value) => params.append("childAge", value));
-      if (!languagesChanged) selectedLanguages.slice(1).forEach((value) => params.append("language", value));
-      navigate(`/search${params.size ? `?${params}` : ""}`);
-    });
-    form.addEventListener("reset", (event) => {
+    searchFormElement.addEventListener("reset", (event) => {
       event.preventDefault();
       navigate("/search");
     });
