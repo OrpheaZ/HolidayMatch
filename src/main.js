@@ -120,39 +120,84 @@ function searchForm({ compact = false } = {}) {
   return `
     <form class="trip-search${compact ? " trip-search-compact" : ""}" id="trip-search-form">
       <div class="search-field destination-field">
-        <label for="destination">${icon("geo-alt")} Reiseziel</label>
-        <input id="destination" name="destination" type="search" placeholder="Wohin soll’s gehen?" autocomplete="off">
+        <label for="destination">${icon("geo-alt")} Reiseziel oder Hotel</label>
+        <div class="landing-destination-control">
+          <input id="destination" name="destination" type="search" placeholder="Ziel oder Hotel eingeben" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions">
+          <button type="button" class="landing-map-toggle" data-action="map" aria-label="Reiseziele auf einer Karte auswählen" aria-expanded="false" aria-controls="destination-map">${icon("map")}</button>
+        </div>
+        <div class="landing-suggestions landing-popover" id="destination-suggestions" role="listbox" aria-label="Vorschläge für Reiseziel oder Hotel" hidden></div>
+        <div class="landing-map landing-popover" id="destination-map" hidden>
+          <strong>Reiseziel auf der Karte wählen</strong>
+          <p>Schematische Übersicht der verfügbaren Beispielziele</p>
+          <div class="landing-map-graphic" aria-label="Schematische Karte des Mittelmeerraums">
+            <svg viewBox="0 0 360 170" preserveAspectRatio="none" aria-hidden="true">
+              <rect width="360" height="170" fill="#d9f3f1"/>
+              <path d="M0 0h360v52l-40 8-29-8-30 20-31-8-27 21-16-8-12-24-20-10-25 10-22-9-33 10-30-13L0 49zM0 130l48-10 37 10 33-4 38 14 46-5 44 14 43-9 71 8v22H0zM105 99l29-5 10 8-20 8-20-3zM214 111l36-5 9 8-31 6-16-3z" fill="#eaf3e4" stroke="#bfded4" stroke-width="2"/>
+            </svg>
+            <button type="button" data-map-destination="Mallorca" class="landing-map-pin pin-mallorca">Mallorca</button>
+            <button type="button" data-map-destination="Gardasee" class="landing-map-pin pin-garda">Gardasee</button>
+            <button type="button" data-map-destination="Kreta" class="landing-map-pin pin-kreta">Kreta</button>
+          </div>
+          <p>Wähle einen Ort aus, um ihn in die Suche zu übernehmen.</p>
+        </div>
       </div>
       <div class="search-field date-field">
-        <label for="start-date">${icon("calendar3")} Reisezeitraum</label>
-        <div class="date-inputs">
-          <input id="start-date" name="start" type="date" aria-label="Anreise">
-          <span aria-hidden="true">–</span>
-          <input id="end-date" name="end" type="date" aria-label="Abreise">
-        </div>
-      </div>
-      <div class="search-field">
-        <label for="age">${icon("emoji-smile")} Alter der Kinder</label>
-        <div class="child-age-list" id="child-age-list">
-          <div class="child-age-entry">
-            <input id="age" name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind 1">
+        <span class="search-field-label" id="landing-date-label">${icon("calendar3")} Reisezeitraum</span>
+        <details class="landing-picker date-picker">
+          <summary aria-labelledby="landing-date-label landing-date-summary"><span id="landing-date-summary" data-date-summary>Zeitraum auswählen</span>${icon("calendar3")}</summary>
+          <div class="landing-popover landing-date-options">
+            <p>Wähle Anreise und Abreise im Kalender oder gib sie einzeln ein.</p>
+            <div class="landing-calendar">
+              <div class="landing-calendar-heading">
+                <button type="button" data-calendar-month="-1" aria-label="Vorheriger Monat">${icon("chevron-left")}</button>
+                <strong data-calendar-month-label aria-live="polite"></strong>
+                <button type="button" data-calendar-month="1" aria-label="Nächster Monat">${icon("chevron-right")}</button>
+              </div>
+              <div class="landing-calendar-weekdays" aria-hidden="true"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+              <div class="landing-calendar-days" aria-label="Kalendertage"></div>
+            </div>
+            <label for="start-date">Anreise</label>
+            <input id="start-date" name="start" type="date">
+            <label for="end-date">Abreise</label>
+            <input id="end-date" name="end" type="date">
+            <p class="landing-date-error" id="landing-date-error" role="alert" hidden></p>
+            <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
           </div>
-        </div>
-        <button class="add-child-age" type="button" data-action="add-child-age">${icon("plus-circle")} Kind hinzufügen</button>
+        </details>
       </div>
       <div class="search-field">
-        <span class="search-field-label">${icon("chat-dots")} Sprachen</span>
-        <details class="language-picker">
-          <summary>${icon("globe2")} <span data-language-summary>Alle Sprachen</span></summary>
-          <div class="language-options">
+        <span class="search-field-label" id="landing-child-label">${icon("people")} Alter der Kinder</span>
+        <details class="landing-picker child-picker">
+          <summary aria-labelledby="landing-child-label landing-child-summary"><span id="landing-child-summary" data-child-summary>Alle Altersgruppen</span>${icon("chevron-down")}</summary>
+          <div class="landing-popover landing-child-options">
+            <p>Gib das Alter deiner Kinder an.</p>
+            <div class="child-age-list" id="child-age-list">
+              <div class="child-age-entry">
+                <label for="age">Kind 1</label>
+                <input id="age" name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind 1">
+                <button type="button" data-action="remove-child-age" aria-label="Kind 1 entfernen">${icon("x-lg")}</button>
+              </div>
+            </div>
+            <button class="add-child-age" type="button" data-action="add-child-age">${icon("plus-circle")} Kind hinzufügen</button>
+            <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
+          </div>
+        </details>
+      </div>
+      <div class="search-field">
+        <span class="search-field-label" id="landing-language-label">${icon("globe2")} Sprache</span>
+        <details class="landing-picker language-picker">
+          <summary aria-labelledby="landing-language-label landing-language-summary"><span id="landing-language-summary" data-language-summary>Alle Sprachen</span>${icon("chevron-down")}</summary>
+          <div class="landing-popover language-options">
+            <p>Wähle eine oder mehrere Sprachen.</p>
             ${["Deutsch", "Englisch", "Spanisch", "Französisch", "Türkisch"].map((language) => `
               <label><input type="checkbox" name="language" value="${language}"><span>${language}</span></label>
             `).join("")}
+            <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
           </div>
         </details>
       </div>
       <button class="btn btn-primary search-submit" type="submit" aria-label="Familien suchen">
-        ${icon("search")}<span class="search-button-label">Suchen</span>
+        ${icon("search")}<span class="search-button-label">Familien suchen</span>
       </button>
     </form>`;
 }
@@ -163,18 +208,51 @@ function landingPage() {
       <section class="hero-section">
         <div class="container hero-container">
           <div class="hero-copy">
-            <span class="eyebrow"><span class="eyebrow-dot"></span> Familien. Urlaub. Gemeinsam.</span>
+            <span class="eyebrow"><span class="eyebrow-dot"></span> FAMILIEN. URLAUB. ENTSPANNT.</span>
             <h1>Spielkameraden<br><span>im Urlaub</span> finden.</h1>
-            <p class="hero-description">Verbinde dich mit Familien, die zur gleichen Zeit am gleichen Urlaubsort sind – für gemeinsame Erlebnisse, neue Freundschaften und unvergessliche Ferien.</p>
+            <p class="hero-description">Damit deine Kinder im Urlaub schnell neue Freunde finden – und du die Zeit endlich auch zum Entspannen genießen kannst.</p>
             <div class="hero-actions">
               <a class="btn btn-primary" href="#familien-suche">Familien entdecken ${icon("arrow-right")}</a>
               <a class="btn btn-outline-primary hero-secondary" href="#wie-es-funktioniert">So funktioniert&apos;s</a>
             </div>
           </div>
-          <div class="hero-visual">
-            <img class="hero-photo" src="${heroImage}" alt="Vier fröhliche Kinder spielen gemeinsam in den Wellen am Strand" fetchpriority="high">
+          <img class="hero-photo" src="${familySearchHero}" alt="Vier fröhliche Kinder spielen gemeinsam im Wasser am Strand" fetchpriority="high">
+          <div class="hero-benefits" aria-label="Deine Vorteile">
+            <div class="hero-benefit">
+              <span class="hero-benefit-icon">
+                <svg viewBox="0 0 48 48" aria-hidden="true">
+                  <circle cx="16" cy="13" r="5" />
+                  <circle cx="32" cy="13" r="5" />
+                  <path d="M7 36v-5a9 9 0 0 1 18 0v5m-4-7 3 12m-8-12-3 12m13-12 3 12m8-12-3 12M25 25a8 8 0 0 1 16 0v7H25z" />
+                </svg>
+              </span>
+              <span>Spielkameraden<br>für deine Kinder</span>
+            </div>
+            <div class="hero-benefit">
+              <span class="hero-benefit-icon">
+                <svg viewBox="0 0 48 48" aria-hidden="true">
+                  <circle cx="35" cy="9" r="4" />
+                  <path d="M5 18a17 17 0 0 1 34 0H5zm17 0v4m-5 4 17 9m-19 2 17-11m-20 13h25M9 34l5 4m22-4-5 4" />
+                </svg>
+              </span>
+              <span>Mehr Entspannung<br>für dich</span>
+            </div>
+            <div class="hero-benefit">
+              <span class="hero-benefit-icon">
+                <svg viewBox="0 0 48 48" aria-hidden="true">
+                  <path d="M24 39S6 29 6 17a10 10 0 0 1 18-6 10 10 0 0 1 18 6c0 12-18 22-18 22z" />
+                  <path d="m34 22 9 3v7c0 5-4 8-9 10-5-2-9-5-9-10v-7l9-3z" />
+                  <path d="m31 32 2 2 4-5" />
+                </svg>
+              </span>
+              <span>Ein sorgloser und entspannter<br>Familienurlaub</span>
+            </div>
           </div>
-          <div class="search-panel" id="familien-suche">
+        </div>
+      </section>
+      <section class="hero-search-section" id="familien-suche">
+        <div class="container">
+          <div class="search-panel">
             <div class="search-heading">
               <div>
                 <span class="search-kicker">Dein nächstes Abenteuer</span>
@@ -700,7 +778,7 @@ function filteredFamilies() {
   const destination = params.get("destination")?.toLocaleLowerCase("de") ?? "";
   const language = params.get("language") ?? "";
   const ageRange = params.get("age") ?? "";
-  const childAges = params.getAll("childAge").map(Number).filter(Number.isInteger);
+  const childAges = params.getAll("childAge").map(Number).filter(Number.isInteger).sort((a, b) => a - b);
   const languages = params.getAll("language");
   const start = params.get("start");
   const end = params.get("end");
@@ -712,7 +790,7 @@ function filteredFamilies() {
     const selectedLanguages = languages.length ? languages : language ? [language] : [];
     const hasLanguage = !selectedLanguages.length
       || selectedLanguages.some((selectedLanguage) => family.languages.includes(selectedLanguage));
-    const matchingChildAges = [...family.children];
+    const matchingChildAges = [...family.children].sort((a, b) => a - b);
     const hasRequestedChildAges = childAges.every((requestedAge) => {
       const matchIndex = matchingChildAges.findIndex((familyAge) => Math.abs(familyAge - requestedAge) <= 2);
       if (matchIndex === -1) return false;
@@ -740,6 +818,229 @@ function renderFamilies() {
   document.querySelector("#empty-results").classList.toggle("d-none", matches.length > 0);
 }
 
+function closeLandingPopovers(form, except = null) {
+  form.querySelectorAll(".landing-picker[open]").forEach((picker) => {
+    if (picker !== except) picker.open = false;
+  });
+  if (except?.id !== "destination-suggestions") {
+    form.querySelector("#destination-suggestions").hidden = true;
+    form.querySelector("#destination").setAttribute("aria-expanded", "false");
+  }
+  if (except?.id !== "destination-map") {
+    form.querySelector("#destination-map").hidden = true;
+    form.querySelector('[data-action="map"]').setAttribute("aria-expanded", "false");
+  }
+}
+
+function setupLandingSearch(form) {
+  const childAgeList = form.querySelector("#child-age-list");
+  const destination = form.querySelector("#destination");
+  const suggestions = form.querySelector("#destination-suggestions");
+  const map = form.querySelector("#destination-map");
+  const start = form.elements.namedItem("start");
+  const end = form.elements.namedItem("end");
+  const values = [...new Set(families.flatMap((family) => [
+    family.destination.split(",")[0], family.region, family.hotel,
+  ]).filter(Boolean))];
+  const dateFormatter = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const monthFormatter = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
+  const dayFormatter = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  let calendarMonth = new Date();
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+
+  function renderCalendar() {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    form.querySelector("[data-calendar-month-label]").textContent = monthFormatter.format(calendarMonth);
+    const blanks = '<span aria-hidden="true"></span>'.repeat(firstWeekday);
+    const days = Array.from({ length: daysInMonth }, (_, index) => {
+      const date = new Date(year, month, index + 1);
+      const value = `${year}-${String(month + 1).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`;
+      const selected = value === start.value || value === end.value;
+      const inRange = start.value && end.value && value > start.value && value < end.value;
+      return `<button type="button" data-calendar-day="${value}" aria-label="${dayFormatter.format(date)}" aria-pressed="${selected}"${inRange ? ' class="in-range"' : ""}>${index + 1}</button>`;
+    }).join("");
+    form.querySelector(".landing-calendar-days").innerHTML = blanks + days;
+  }
+
+  function updateSummary() {
+    const ages = [...childAgeList.querySelectorAll('input[name="childAge"]')]
+      .map((input) => input.value).filter((value) => value !== "");
+    const languages = [...form.querySelectorAll('input[name="language"]:checked')].map((input) => input.value);
+    form.querySelector("[data-child-summary]").textContent = ages.length
+      ? `${ages.length} ${ages.length === 1 ? "Kind" : "Kinder"}: ${ages.join(", ")} J.`
+      : "Alle Altersgruppen";
+    form.querySelector("[data-language-summary]").textContent = languages.length ? languages.join(", ") : "Alle Sprachen";
+    const format = (value) => dateFormatter.format(new Date(`${value}T12:00:00`));
+    form.querySelector("[data-date-summary]").textContent = start.value && end.value
+      ? `${format(start.value)} – ${format(end.value)}`
+      : start.value ? `Ab ${format(start.value)}` : end.value ? `Bis ${format(end.value)}` : "Zeitraum auswählen";
+  }
+
+  function showSuggestions() {
+    const query = destination.value.trim().toLocaleLowerCase("de");
+    const matches = values.filter((value) => value.toLocaleLowerCase("de").includes(query));
+    suggestions.innerHTML = matches.length
+      ? matches.map((value, index) => `<button type="button" role="option" id="destination-option-${index}" data-destination="${escapeHTML(value)}">${icon("geo-alt")} ${escapeHTML(value)}</button>`).join("")
+      : '<p>Keine passenden Vorschläge. Du kannst dein Ziel trotzdem eingeben.</p>';
+    closeLandingPopovers(form, suggestions);
+    suggestions.hidden = false;
+    destination.setAttribute("aria-expanded", "true");
+  }
+
+  function addChild(focus = true) {
+    if (childAgeList.children.length >= 6) return null;
+    const index = childAgeList.children.length + 1;
+    const entry = document.createElement("div");
+    entry.className = "child-age-entry";
+    entry.innerHTML = `<label>Kind ${index}</label>
+      <input name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind ${index}">
+      <button type="button" data-action="remove-child-age" aria-label="Kind ${index} entfernen">${icon("x-lg")}</button>`;
+    childAgeList.append(entry);
+    const input = entry.querySelector("input");
+    if (focus) input.focus();
+    form.querySelector('[data-action="add-child-age"]').disabled = childAgeList.children.length >= 6;
+    return input;
+  }
+
+  form.addEventListener("click", (event) => {
+    const pickerSummary = event.target.closest(".landing-picker > summary");
+    if (pickerSummary && !pickerSummary.parentElement.open) {
+      closeLandingPopovers(form, pickerSummary.parentElement);
+      if (pickerSummary.parentElement.classList.contains("date-picker")) renderCalendar();
+    }
+    const monthButton = event.target.closest("[data-calendar-month]");
+    if (monthButton) {
+      calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + Number(monthButton.dataset.calendarMonth), 1);
+      renderCalendar();
+    }
+    const dayButton = event.target.closest("[data-calendar-day]");
+    if (dayButton) {
+      const value = dayButton.dataset.calendarDay;
+      if (!start.value || end.value) {
+        start.value = value;
+        end.value = "";
+      } else if (value < start.value) {
+        end.value = start.value;
+        start.value = value;
+      } else {
+        end.value = value;
+      }
+      end.setCustomValidity("");
+      form.querySelector("#landing-date-error").hidden = true;
+      updateSummary();
+      renderCalendar();
+      form.querySelector(`[data-calendar-day="${value}"]`).focus();
+    }
+    const selection = event.target.closest("[data-destination], [data-map-destination]");
+    if (selection) {
+      destination.value = selection.dataset.destination ?? selection.dataset.mapDestination;
+      destination.focus();
+      closeLandingPopovers(form);
+    }
+    if (event.target.closest('[data-action="map"]')) {
+      const shouldOpen = map.hidden;
+      closeLandingPopovers(form, map);
+      map.hidden = !shouldOpen;
+      form.querySelector('[data-action="map"]').setAttribute("aria-expanded", String(shouldOpen));
+    }
+    if (event.target.closest('[data-action="add-child-age"]')) addChild();
+    const removeButton = event.target.closest('[data-action="remove-child-age"]');
+    if (removeButton) {
+      removeButton.closest(".child-age-entry").remove();
+      childAgeList.querySelectorAll(".child-age-entry").forEach((entry, index) => {
+        entry.querySelector("label").textContent = `Kind ${index + 1}`;
+        entry.querySelector("input").setAttribute("aria-label", `Alter von Kind ${index + 1}`);
+        entry.querySelector("button")?.setAttribute("aria-label", `Kind ${index + 1} entfernen`);
+      });
+      form.querySelector('[data-action="add-child-age"]').disabled = false;
+      form.querySelector('[data-action="add-child-age"]').focus();
+      updateSummary();
+    }
+    const done = event.target.closest('[data-action="close-picker"]');
+    if (done) {
+      const picker = done.closest("details");
+      if (picker.classList.contains("date-picker") && start.value && end.value && end.value < start.value) {
+        form.querySelector("#landing-date-error").textContent = "Die Abreise muss nach der Anreise liegen.";
+        form.querySelector("#landing-date-error").hidden = false;
+        end.focus();
+        return;
+      }
+      picker.open = false;
+      picker.querySelector("summary").focus();
+    }
+  });
+  destination.addEventListener("focus", showSuggestions);
+  destination.addEventListener("input", showSuggestions);
+  destination.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" && !suggestions.hidden) {
+      event.preventDefault();
+      suggestions.querySelector('[role="option"]')?.focus();
+    }
+  });
+  suggestions.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const options = [...suggestions.querySelectorAll('[role="option"]')];
+    const index = options.indexOf(document.activeElement);
+    options[(index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length]?.focus();
+  });
+  form.querySelector(".landing-calendar-days").addEventListener("keydown", (event) => {
+    const offsets = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+    const button = event.target.closest("[data-calendar-day]");
+    if (!button || !(event.key in offsets)) return;
+    event.preventDefault();
+    const [year, month, day] = button.dataset.calendarDay.split("-").map(Number);
+    const next = new Date(year, month - 1, day + offsets[event.key]);
+    calendarMonth = new Date(next.getFullYear(), next.getMonth(), 1);
+    renderCalendar();
+    const value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+    form.querySelector(`[data-calendar-day="${value}"]`).focus();
+  });
+  form.addEventListener("input", (event) => {
+    if (event.target === start || event.target === end) {
+      end.setCustomValidity("");
+      form.querySelector("#landing-date-error").hidden = true;
+      if (event.target.value) {
+        const [year, month] = event.target.value.split("-").map(Number);
+        calendarMonth = new Date(year, month - 1, 1);
+      }
+      renderCalendar();
+    }
+    updateSummary();
+  });
+  form.addEventListener("change", updateSummary);
+  form.addEventListener("invalid", (event) => {
+    const picker = event.target.closest(".landing-picker");
+    if (picker) {
+      closeLandingPopovers(form, picker);
+      picker.open = true;
+    }
+  }, true);
+
+  let ageIndex = 0;
+  for (const [key, value] of new URLSearchParams(location.search)) {
+    if (key === "childAge") {
+      const input = childAgeList.querySelectorAll('input[name="childAge"]')[ageIndex] ?? addChild(false);
+      if (input) { input.value = value; ageIndex += 1; }
+    } else if (key === "language") {
+      const input = [...form.querySelectorAll('input[name="language"]')].find((checkbox) => checkbox.value === value);
+      if (input) input.checked = true;
+    } else {
+      const field = form.elements.namedItem(key);
+      if (field) field.value = value;
+    }
+  }
+  if (start.value || end.value) {
+    const [year, month] = (start.value || end.value).split("-").map(Number);
+    calendarMonth = new Date(year, month - 1, 1);
+  }
+  renderCalendar();
+  updateSummary();
+}
+
 function mountPage() {
   const path = location.pathname.replace(/\/+$/, "") || "/";
   const page = path === "/search"
@@ -755,64 +1056,7 @@ function mountPage() {
 
   if (path === "/") {
     const searchFormElement = document.querySelector("#trip-search-form");
-    const childAgeList = document.querySelector("#child-age-list");
-
-    searchFormElement.addEventListener("click", (event) => {
-      const addButton = event.target.closest('[data-action="add-child-age"]');
-      const removeButton = event.target.closest('[data-action="remove-child-age"]');
-      if (addButton && childAgeList.children.length < 6) {
-        const index = childAgeList.children.length + 1;
-        const entry = document.createElement("div");
-        entry.className = "child-age-entry";
-        entry.innerHTML = `
-          <input name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind ${index}">
-          <button type="button" data-action="remove-child-age" aria-label="Kind ${index} entfernen">${icon("x")}</button>
-        `;
-        childAgeList.append(entry);
-        entry.querySelector("input").focus();
-        addButton.disabled = childAgeList.children.length >= 6;
-      }
-      if (removeButton) {
-        removeButton.closest(".child-age-entry").remove();
-        [...childAgeList.querySelectorAll("input")].forEach((input, index) => {
-          input.setAttribute("aria-label", `Alter von Kind ${index + 1}`);
-        });
-        searchFormElement.querySelector('[data-action="add-child-age"]').disabled = false;
-      }
-    });
-
-    searchFormElement.addEventListener("change", (event) => {
-      if (!event.target.matches('input[name="language"]')) return;
-      const selected = [...searchFormElement.querySelectorAll('input[name="language"]:checked')]
-        .map((input) => input.value);
-      searchFormElement.querySelector("[data-language-summary]").textContent =
-        selected.length ? selected.join(", ") : "Alle Sprachen";
-    });
-
-    let childAgeIndex = 0;
-    for (const [key, value] of new URLSearchParams(location.search)) {
-      if (key === "childAge") {
-        let input = childAgeList.querySelectorAll('input[name="childAge"]')[childAgeIndex];
-        if (!input && childAgeList.children.length < 6) {
-          searchFormElement.querySelector('[data-action="add-child-age"]').click();
-          input = childAgeList.lastElementChild.querySelector("input");
-        }
-        if (!input) continue;
-        input.value = value;
-        childAgeIndex += 1;
-      } else if (key === "language") {
-        const languageInput = [...searchFormElement.querySelectorAll('input[name="language"]')]
-          .find((checkbox) => checkbox.value === value);
-        if (languageInput) languageInput.checked = true;
-      } else {
-        const field = searchFormElement.elements.namedItem(key);
-        if (field) field.value = value;
-      }
-    }
-    const selectedLanguages = [...searchFormElement.querySelectorAll('input[name="language"]:checked')]
-      .map((input) => input.value);
-    searchFormElement.querySelector("[data-language-summary]").textContent =
-      selectedLanguages.length ? selectedLanguages.join(", ") : "Alle Sprachen";
+    setupLandingSearch(searchFormElement);
 
     document.querySelector(".hero-actions")?.addEventListener("click", (event) => {
       const link = event.target.closest('a[href^="#"]');
@@ -831,10 +1075,37 @@ function mountPage() {
 
   if (path === "/search") {
     const form = document.querySelector("#family-search-form");
-    for (const [key, value] of new URLSearchParams(location.search)) {
-      const field = form.elements.namedItem(key);
-      if (field) field.value = value;
+    const searchParams = new URLSearchParams(location.search);
+    const selectedLanguages = searchParams.getAll("language");
+    const selectedAges = searchParams.getAll("childAge");
+    const destinationValue = searchParams.get("destination");
+    const destinationSelect = form.elements.namedItem("destination");
+    if (destinationValue && ![...destinationSelect.options].some((option) => option.value === destinationValue)) {
+      destinationSelect.add(new Option(destinationValue, destinationValue));
     }
+    const languageSelect = form.elements.namedItem("language");
+    if (selectedLanguages[0] && ![...languageSelect.options].some((option) => option.value === selectedLanguages[0])) {
+      languageSelect.add(new Option(selectedLanguages[0], selectedLanguages[0]));
+    }
+    for (const [key, value] of searchParams) {
+      const field = form.elements.namedItem(key);
+      if (field && key !== "language") field.value = value;
+    }
+    if (selectedLanguages.length) languageSelect.value = selectedLanguages[0];
+    if (selectedAges.length || selectedLanguages.length > 1) {
+      const notice = document.createElement("p");
+      notice.className = "family-filter-carryover";
+      notice.textContent = [
+        selectedAges.length ? `Kinderalter: ${selectedAges.join(", ")} Jahre` : "",
+        selectedLanguages.length > 1 ? `Sprachen: ${selectedLanguages.join(", ")}` : "",
+        "Diese Kriterien bleiben beim erneuten Suchen erhalten. Mit „Filter zurücksetzen“ entfernst du sie.",
+      ].filter(Boolean).join(" · ");
+      form.insertBefore(notice, form.querySelector("#family-filter-error"));
+    }
+    let languagesChanged = false;
+    let agesChanged = false;
+    languageSelect.addEventListener("change", () => { languagesChanged = true; });
+    form.elements.namedItem("age").addEventListener("change", () => { agesChanged = true; });
     renderFamilies();
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -852,6 +1123,8 @@ function mountPage() {
       for (const [key, value] of new FormData(form)) {
         if (value) params.set(key, value.toString());
       }
+      if (!agesChanged) selectedAges.forEach((value) => params.append("childAge", value));
+      if (!languagesChanged) selectedLanguages.slice(1).forEach((value) => params.append("language", value));
       navigate(`/search${params.size ? `?${params}` : ""}`);
     });
     form.addEventListener("reset", (event) => {
@@ -974,6 +1247,13 @@ function mountPage() {
         ? "Die Abreise muss nach der Anreise liegen."
         : ""
     );
+    if (!end.validity.valid) {
+      form.querySelector(".date-picker").open = true;
+      form.querySelector("#landing-date-error").textContent = end.validationMessage;
+      form.querySelector("#landing-date-error").hidden = false;
+      end.focus();
+      return;
+    }
     if (!form.reportValidity()) return;
 
     const formData = new FormData(event.currentTarget);
@@ -1001,10 +1281,31 @@ function mountPage() {
 }
 
 document.addEventListener("click", (event) => {
+  const searchForm = document.querySelector("#trip-search-form");
+  if (searchForm && !event.composedPath().includes(searchForm)) closeLandingPopovers(searchForm);
   const link = event.target.closest('a[href^="/"]');
   if (!link || link.target || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   event.preventDefault();
   navigate(link.getAttribute("href"));
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const form = document.querySelector("#trip-search-form");
+  if (!form) return;
+  const picker = document.activeElement.closest(".landing-picker");
+  const focusTarget = picker?.querySelector("summary")
+    ?? (form.querySelector("#destination-map").contains(document.activeElement)
+      ? form.querySelector('[data-action="map"]')
+      : form.querySelector("#destination"));
+  const isOpen = form.querySelector(".landing-picker[open]")
+    || !form.querySelector("#destination-suggestions").hidden
+    || !form.querySelector("#destination-map").hidden;
+  if (!isOpen) return;
+  event.preventDefault();
+  closeLandingPopovers(form);
+  focusTarget.focus();
+  closeLandingPopovers(form);
 });
 
 window.addEventListener("popstate", mountPage);
