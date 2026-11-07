@@ -52,9 +52,19 @@ email addresses, or internal user IDs. Results and filters are public, so
 combining their fields can make families identifiable. The migration grants
 consent only to marked demo accounts; all other trips remain unshared by default.
 Real users need an informed, revocable opt-in interface before publishing their
-family details. Integrating Auth, trip CRUD, consent management, and the contact
-workflow remains future work; the current login and trips are still prototypes.
-Test RLS and consent with separate accounts before using real family data.
+family details. Registration and login use Supabase Auth; a confirmed session
+creates the user's profile if needed without overwriting an existing profile.
+Configure the site's URL and `/login` confirmation redirect in Supabase Auth's
+URL allow list for every deployment. Email confirmation and SMTP depend on the
+project's Auth settings; the built-in email service has restricted delivery and
+rate limits. The trips page loads and saves only the current user's trips through
+RLS. New trips are private; publishing requires explicit confirmation, and
+turning visibility off revokes the search consent. Free-text destinations,
+per-trip languages, and ages entered in the trip form are stored on the trip;
+the ages are not linked to the separate child profiles. Previously entered
+prototype trips were only in memory and cannot be recovered after a reload.
+Password recovery and the contact workflow remain prototypes. Test RLS and consent with separate accounts before
+using real family data.
 
 ### Development demo data
 

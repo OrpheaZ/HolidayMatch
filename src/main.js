@@ -5,8 +5,10 @@ import "./styles.css";
 import familySearchHero from "./assets/familien_suchen.png";
 import myTripsHero from "./assets/meiner_eisen.png";
 import landingMobileHero from "./assets/holidaybuddies_opener_mb.png";
-import { getSupabase } from "./lib/supabase.js";
+import { getSupabase, setAuthPersistence } from "./lib/supabase.js";
 import { filterFamilies } from "./lib/family-search.js";
+import { register, login, ensureProfile, authErrorMessage } from "./lib/auth.js";
+import { fetchOwnTrips, saveOwnTrip, removeOwnTrip, setOwnTripVisibility } from "./lib/trips.js";
 
 const app = document.querySelector("#app");
 const navItems = [
@@ -17,6 +19,7 @@ const navItems = [
 
 const icon = (name) => `<i class="bi bi-${name}" aria-hidden="true"></i>`;
 const favoriteFamilyIds = new Set();
+let currentSession = null;
 const exampleTrips = [
   {
     destination: "Mallorca",
@@ -47,32 +50,6 @@ const exampleTrips = [
     children: [{ age: 6, gender: "Mädchen" }, { age: 8, gender: "Junge" }],
   },
 ];
-let myTrips = [
-  {
-    id: 1,
-    destination: "Mallorca",
-    region: "Alcúdia, Mallorca",
-    start: "2027-07-12",
-    end: "2027-07-22",
-    children: [{ age: 5, gender: "" }, { age: 8, gender: "" }],
-    languages: ["Deutsch", "Englisch"],
-    image: exampleTrips[0].image,
-    visible: true,
-  },
-  {
-    id: 2,
-    destination: "Kreta",
-    region: "Chania, Kreta",
-    start: "2026-08-04",
-    end: "2026-08-14",
-    children: [{ age: 6, gender: "" }],
-    languages: ["Deutsch"],
-    image: exampleTrips[1].image,
-    visible: false,
-  },
-];
-let nextTripId = 3;
-
 function header() {
   const links = navItems.map(({ href, label }) =>
     `<a class="nav-link${location.pathname === href ? " active" : ""}" href="${href}">${label}</a>`
@@ -94,13 +71,14 @@ function header() {
             <div class="navbar-nav main-nav mx-lg-auto align-items-lg-center gap-lg-2">
               ${links}
             </div>
-            <div class="navbar-nav auth-nav align-items-lg-center gap-lg-2">
+            <div class="navbar-nav auth-nav align-items-lg-center gap-lg-2" id="auth-navigation">
               <a class="nav-link" href="/login">Anmelden</a>
               <a class="btn btn-primary nav-cta" href="/register">Kostenlos starten</a>
             </div>
           </div>
         </div>
       </nav>
+      <p class="container text-danger small mb-0" id="auth-navigation-error" role="alert" hidden></p>
     </header>`;
 }
 
@@ -138,7 +116,7 @@ function searchForm({ reset = false, trip = false } = {}) {
       <div class="search-field destination-field">
         <label for="destination">${icon("geo-alt")} Reiseziel oder Hotel</label>
         <div class="landing-destination-control">
-          <input id="destination" name="destination" type="search" placeholder="Ziel oder Hotel eingeben" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions"${trip ? " required" : ""}>
+          <input id="destination" name="destination" type="search" placeholder="Ziel oder Hotel eingeben" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions"${trip ? ' maxlength="150" required' : ""}>
           <button type="button" class="landing-map-toggle" data-action="map" aria-label="Reiseziele auf einer Karte auswählen" aria-expanded="false" aria-controls="destination-map">${icon("map")}</button>
         </div>
         <div class="landing-suggestions landing-popover" id="destination-suggestions" role="listbox" aria-label="Vorschläge für Reiseziel oder Hotel" hidden></div>
@@ -159,7 +137,7 @@ function searchForm({ reset = false, trip = false } = {}) {
       </div>
       ${trip ? `<div class="search-field trip-region-field">
         <label for="trip-region">${icon("geo-alt")} Ort / Region</label>
-        <input id="trip-region" name="region" type="text" placeholder="z. B. Alcúdia, Mallorca" required>
+        <input id="trip-region" name="region" type="text" placeholder="z. B. Alcúdia, Mallorca" maxlength="150" required>
       </div>` : ""}
       <div class="search-field date-field">
         <span class="search-field-label" id="landing-date-label">${icon("calendar3")} Reisezeitraum</span>
@@ -214,7 +192,7 @@ function searchForm({ reset = false, trip = false } = {}) {
           <summary aria-labelledby="landing-language-label landing-language-summary"><span id="landing-language-summary" data-language-summary>Alle Sprachen</span>${icon("chevron-down")}</summary>
           <div class="landing-popover language-options">
             <p>Wähle eine oder mehrere Sprachen.</p>
-            ${["Deutsch", "Englisch", "Spanisch", "Französisch", "Türkisch"].map((language) => `
+            ${["Deutsch", "Englisch", "Bulgarisch", "Spanisch", "Französisch", "Türkisch", "Niederländisch", "Italienisch"].map((language) => `
               <label><input type="checkbox" name="language" value="${language}"><span>${language}</span></label>
             `).join("")}
             <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
@@ -447,7 +425,7 @@ function familyCard(family) {
           <span>${icon("people-fill")}<span>${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</span></span>
           <span>${icon("globe2")}<span>${escapeHTML(family.languages.join(", ") || "Keine Sprachen angegeben")}</span></span>
         </div>
-        <p class="family-result-note">Kinderalter anhand des Geburtsjahres geschätzt.</p>
+        <p class="family-result-note">Altersangaben können ungefähre Werte sein.</p>
         <a class="family-contact-button" href="/login" aria-label="Anmelden, um eine Familie zu kontaktieren">
           ${icon("chat-dots")} Kontakt anfragen <span class="family-contact-hint">Anmeldung erforderlich</span>
         </a>
@@ -522,13 +500,15 @@ function escapeHTML(value) {
 }
 
 function tripDateRange(start, end) {
+  const startDate = new Date(`${start}T12:00:00`);
+  const endDate = new Date(`${end}T12:00:00`);
+  const fullDate = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric" });
+  if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
+    return `${fullDate.format(startDate)} – ${fullDate.format(endDate)}`;
+  }
   const startDay = new Intl.DateTimeFormat("de-DE", { day: "numeric" })
-    .format(new Date(`${start}T12:00:00`));
-  const formattedEnd = new Intl.DateTimeFormat("de-DE", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(`${end}T12:00:00`));
+    .format(startDate);
+  const formattedEnd = fullDate.format(endDate);
   return `${startDay}–${formattedEnd}`;
 }
 
@@ -555,7 +535,7 @@ function myTripsPage() {
           ${icon("plus-lg")} Neue Reise hinzufügen
         </button>
         <div id="my-trips-list" class="my-trips-list">
-          ${renderMyTrips()}
+          <p role="status">Reisen werden geladen …</p>
         </div>
         <button class="my-trips-bottom-cta" type="button" data-trip-action="new">
           <span class="my-trips-bottom-icon">${icon("plus-lg")}</span>
@@ -593,7 +573,7 @@ function myTripsPage() {
     </main>`;
 }
 
-function renderMyTrips() {
+function renderMyTrips(myTrips) {
   if (!myTrips.length) {
     return `<div class="my-trips-empty">
       <span>${icon("airplane")}</span>
@@ -615,7 +595,7 @@ function renderMyTrips() {
     return `
       <article class="my-trip-card">
         <div class="my-trip-photo">
-          <img src="${escapeHTML(trip.image)}" alt="${escapeHTML(trip.destination)}" loading="lazy">
+          <img src="${escapeHTML(exampleTrips.find((item) => trip.destination.includes(item.destination))?.image ?? exampleTrips[0].image)}" alt="Symbolbild eines Urlaubsortes" loading="lazy">
           <span class="my-trip-status${past ? " is-past" : ""}">${icon(past ? "calendar-check" : "calendar-event")}${past ? "Vergangen" : "Bevorstehend"}</span>
         </div>
         <div class="my-trip-main">
@@ -645,6 +625,7 @@ function renderMyTrips() {
             <input type="checkbox" data-trip-visibility="${trip.id}" aria-label="${escapeHTML(trip.destination)} für andere Familien sichtbar machen"${trip.visible ? " checked" : ""}>
             <span class="my-trip-switch" aria-hidden="true"></span>
           </label>
+          ${trip.visible && !trip.detailsShared ? '<small>Reiseziel und Zeitraum können öffentlich sein; Familienangaben sind nicht für die Suche freigegeben.</small>' : ""}
           <div class="my-trip-actions">
             <button type="button" data-trip-action="edit" data-trip-id="${trip.id}">${icon("pencil")}<span>Bearbeiten</span></button>
             <a href="/search?${query}" aria-label="Passende Familien für ${escapeHTML(trip.destination)} finden">${icon("people")}<span>Passende Familien</span></a>
@@ -678,7 +659,7 @@ function authPage(mode) {
               ${registering ? `
                 <div class="mb-3">
                   <label class="form-label" for="name">Dein Name</label>
-                  <input class="form-control" id="name" name="name" type="text" autocomplete="name" placeholder="z. B. Alex Muster" required>
+                  <input class="form-control" id="name" name="name" type="text" autocomplete="name" placeholder="z. B. Alex Muster" maxlength="100" required>
                 </div>` : ""}
               <div class="mb-3">
                 <label class="form-label" for="email">E-Mail-Adresse</label>
@@ -686,16 +667,16 @@ function authPage(mode) {
               </div>
               <div class="mb-3">
                 <label class="form-label" for="password">Passwort</label>
-                <input class="form-control" id="password" name="password" type="password" autocomplete="${registering ? "new-password" : "current-password"}" placeholder="Mindestens 8 Zeichen" minlength="8" required>
+                <input class="form-control" id="password" name="password" type="password" autocomplete="${registering ? "new-password" : "current-password"}" placeholder="${registering ? "Mindestens 8 Zeichen" : "Dein Passwort"}"${registering ? ' minlength="8"' : ""} required>
               </div>
               ${registering ? `
                 <div class="form-check auth-check">
                   <input class="form-check-input" id="privacy" type="checkbox" required>
-                  <label class="form-check-label" for="privacy">Ich stimme den <a href="#auth-demo-note">Datenschutzhinweisen</a> zu.</label>
+                  <label class="form-check-label" for="privacy">Ich habe die <a href="#auth-demo-note">Informationen zur Verarbeitung</a> gelesen.</label>
                 </div>` : `
                 <div class="auth-options">
                   <label class="form-check">
-                    <input class="form-check-input" type="checkbox" id="remember">
+                    <input class="form-check-input" type="checkbox" id="remember" checked>
                     <span class="form-check-label">Angemeldet bleiben</span>
                   </label>
                   <a href="#auth-notice" data-action="reset-password">Passwort vergessen?</a>
@@ -704,7 +685,7 @@ function authPage(mode) {
               <p class="prototype-message" id="auth-notice" role="status" hidden></p>
             </form>
             <p class="auth-switch">${registering ? "Schon ein Konto?" : "Noch kein Konto?"} <a href="${registering ? "/login" : "/register"}">${registering ? "Jetzt anmelden" : "Kostenlos registrieren"}</a></p>
-            <p class="auth-demo-note" id="auth-demo-note">${icon("info-circle")} Demo-Prototyp: Es werden keine Konten erstellt oder Daten gespeichert.</p>
+            <p class="auth-demo-note" id="auth-demo-note">${icon("info-circle")} Für dein Konto werden deine E-Mail-Adresse und dein Anzeigename bei Supabase gespeichert. Weitere Funktionen wie Reisen und Kontaktanfragen sind teilweise noch Prototypen.</p>
           </div>
         </div>
       </section>
@@ -715,6 +696,21 @@ function navigate(url) {
   history.pushState({}, "", url);
   mountPage();
   window.scrollTo(0, 0);
+}
+
+function updateAuthNavigation() {
+  const nav = document.querySelector("#auth-navigation");
+  if (!nav) return;
+  nav.innerHTML = currentSession
+    ? '<button class="btn btn-primary nav-cta" type="button" data-action="sign-out">Abmelden</button>'
+    : '<a class="nav-link" href="/login">Anmelden</a><a class="btn btn-primary nav-cta" href="/register">Kostenlos starten</a>';
+}
+
+function showAuthNotice(message) {
+  const notice = document.querySelector("#auth-notice");
+  if (!notice) return;
+  notice.textContent = message;
+  notice.hidden = false;
 }
 
 async function loadPublicFamilies() {
@@ -1009,6 +1005,7 @@ function mountPage() {
         ? authPage("register")
         : landingPage();
   app.innerHTML = `${header()}${page}${footer()}`;
+  updateAuthNavigation();
 
   const searchFormElement = document.querySelector("#trip-search-form");
   const searchControls = searchFormElement ? setupLandingSearch(searchFormElement) : null;
@@ -1078,12 +1075,44 @@ function mountPage() {
     const list = document.querySelector("#my-trips-list");
     const dialog = document.querySelector("#trip-dialog");
     const form = document.querySelector("#trip-form");
+    const page = document.querySelector(".my-trips-page");
+    const createButtons = page.querySelectorAll('[data-trip-action="new"]');
     const destinationInput = form.elements.namedItem("destination");
     const startInput = form.elements.namedItem("start");
     const endInput = form.elements.namedItem("end");
     const tripSearch = setupLandingSearch(form, { fromQuery: false });
+    let myTrips = [];
+    let userId = null;
+    createButtons.forEach((button) => { button.disabled = true; });
 
-    document.querySelector(".my-trips-page").addEventListener("click", (event) => {
+    const showListError = (text) => {
+      list.innerHTML = `<p role="alert">${escapeHTML(text)}</p>`;
+    };
+    async function refreshTrips() {
+      const trips = await fetchOwnTrips(getSupabase(), userId);
+      if (!list.isConnected) return;
+      myTrips = trips;
+      list.innerHTML = renderMyTrips(myTrips);
+    }
+    (async () => {
+      try {
+        const { data, error } = await getSupabase().auth.getUser();
+        if (error && error.name !== "AuthSessionMissingError") throw error;
+        if (!list.isConnected) return;
+        if (!data.user) {
+          list.innerHTML = '<div class="my-trips-empty"><h2>Bitte melde dich an</h2><p>Deine Reisen sind nur für dich sichtbar.</p><a class="btn btn-primary" href="/login">Anmelden</a></div>';
+          return;
+        }
+        userId = data.user.id;
+        await refreshTrips();
+        if (list.isConnected) createButtons.forEach((button) => { button.disabled = false; });
+      } catch (error) {
+        console.error("Reisen konnten nicht geladen werden:", error);
+        if (list.isConnected) showListError("Deine Reisen konnten nicht geladen werden. Bitte lade die Seite erneut.");
+      }
+    })();
+
+    page.addEventListener("click", async (event) => {
       const button = event.target.closest("[data-trip-action]");
       if (!button) return;
       const action = button.dataset.tripAction;
@@ -1092,9 +1121,11 @@ function mountPage() {
         return;
       }
       if (action === "new" || action === "edit") {
+        if (!userId) return;
         const trip = action === "edit"
-          ? myTrips.find((item) => item.id === Number(button.dataset.tripId))
+          ? myTrips.find((item) => item.id === button.dataset.tripId)
           : null;
+        if (action === "edit" && !trip) return;
         form.reset();
         form.elements.namedItem("id").value = trip?.id ?? "";
         form.elements.namedItem("destination").value = trip?.destination ?? "";
@@ -1112,19 +1143,45 @@ function mountPage() {
         return;
       }
       if (action === "remove") {
-        myTrips = myTrips.filter((trip) => trip.id !== Number(button.dataset.tripId));
-        list.innerHTML = renderMyTrips();
+        button.disabled = true;
+        try {
+          await removeOwnTrip(getSupabase(), userId, button.dataset.tripId);
+          await refreshTrips();
+        } catch (error) {
+          console.error("Reise konnte nicht entfernt werden:", error);
+          if (list.isConnected) {
+            button.disabled = false;
+            showListError("Die Reise konnte nicht entfernt oder die Übersicht nicht aktualisiert werden. Bitte lade die Seite erneut.");
+          }
+        }
       }
     });
 
-    list.addEventListener("change", (event) => {
+    list.addEventListener("change", async (event) => {
       const input = event.target.closest("[data-trip-visibility]");
       if (!input) return;
-      const trip = myTrips.find((item) => item.id === Number(input.dataset.tripVisibility));
-      if (trip) trip.visible = input.checked;
+      const trip = myTrips.find((item) => item.id === input.dataset.tripVisibility);
+      if (!trip) return;
+      if (input.checked && !window.confirm("Möchtest du Reiseziel, Reisezeitraum, Sprachen sowie Alter und Geschlecht der Kinder öffentlich für die Familiensuche freigeben? Diese Angaben können zusammen Rückschlüsse auf eure Familie ermöglichen.")) {
+        input.checked = false;
+        return;
+      }
+      input.disabled = true;
+      try {
+        await setOwnTripVisibility(getSupabase(), trip.id, input.checked);
+        trip.visible = input.checked;
+        trip.detailsShared = input.checked;
+        list.innerHTML = renderMyTrips(myTrips);
+      } catch (error) {
+        console.error("Sichtbarkeit konnte nicht gespeichert werden:", error);
+        input.checked = trip.visible;
+        window.alert("Die Sichtbarkeit konnte nicht gespeichert werden. Bitte versuche es erneut.");
+      } finally {
+        input.disabled = false;
+      }
     });
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       endInput.setCustomValidity(
         startInput.value && endInput.value && endInput.value < startInput.value
@@ -1154,30 +1211,50 @@ function mountPage() {
         form.querySelector('input[name="language"]').focus();
         return;
       }
-      const id = Number(formData.get("id"));
+      const id = formData.get("id").toString();
       const existingTrip = myTrips.find((trip) => trip.id === id);
+      if (id && !existingTrip) {
+        message.textContent = "Die Reise wurde nicht gefunden. Bitte lade die Seite erneut.";
+        message.hidden = false;
+        return;
+      }
       const destination = formData.get("destination").toString().trim();
+      const region = formData.get("region").toString().trim();
+      if (!destination || !region) {
+        message.textContent = "Bitte gib ein Reiseziel und einen Ort oder eine Region ein.";
+        message.hidden = false;
+        return;
+      }
       const updatedTrip = {
-        id: existingTrip?.id ?? nextTripId++,
+        id: existingTrip?.id,
         destination,
-        region: formData.get("region").toString().trim(),
+        region,
         start: formData.get("start").toString(),
         end: formData.get("end").toString(),
         children: children.map((child) => ({ ...child, age: Number(child.age) })),
         languages,
-        image: destination.toLocaleLowerCase("de").includes("kreta")
-          ? exampleTrips[1].image
-          : exampleTrips[0].image,
-        visible: existingTrip?.visible ?? true,
       };
 
-      if (existingTrip) {
-        myTrips = myTrips.map((trip) => trip.id === id ? updatedTrip : trip);
-      } else {
-        myTrips.push(updatedTrip);
+      if (existingTrip?.visible && !window.confirm("Diese Reise ist öffentlich. Die geänderten Angaben zu Reiseziel, Zeitraum, Sprachen und Kindern werden ebenfalls öffentlich sichtbar. Möchtest du sie speichern?")) return;
+      const submit = form.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      message.textContent = "Reise wird gespeichert …";
+      message.hidden = false;
+      try {
+        await saveOwnTrip(getSupabase(), userId, updatedTrip);
+        dialog.close();
+        await refreshTrips();
+      } catch (error) {
+        console.error("Reise konnte nicht gespeichert oder geladen werden:", error);
+        if (dialog.open) {
+          message.textContent = "Die Reise konnte nicht gespeichert werden. Bitte versuche es erneut.";
+          message.hidden = false;
+        } else if (list.isConnected) {
+          showListError("Die Reise wurde gespeichert, aber die Übersicht konnte nicht aktualisiert werden. Bitte lade die Seite erneut.");
+        }
+      } finally {
+        submit.disabled = false;
       }
-      list.innerHTML = renderMyTrips();
-      dialog.close();
     });
   }
 
@@ -1223,11 +1300,46 @@ function mountPage() {
     }
   });
 
-  document.querySelector("#auth-form")?.addEventListener("submit", (event) => {
+  document.querySelector("#auth-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const notice = document.querySelector("#auth-notice");
-    notice.textContent = "Das Formular ist im Prototyp noch nicht mit einem Konto verbunden.";
-    notice.hidden = false;
+    const form = event.currentTarget;
+    const submit = form.querySelector('button[type="submit"]');
+    const isRegistration = path === "/register";
+    const data = new FormData(form);
+    const name = isRegistration ? data.get("name").trim() : "";
+    if (isRegistration && !name) {
+      showAuthNotice("Bitte gib deinen Namen ein.");
+      return;
+    }
+    submit.disabled = true;
+    showAuthNotice(isRegistration ? "Konto wird erstellt …" : "Anmeldung läuft …");
+    try {
+      const client = getSupabase();
+      setAuthPersistence(isRegistration || form.querySelector("#remember").checked);
+      const credentials = { email: data.get("email").trim(), password: data.get("password") };
+      const result = isRegistration
+        ? await register(client, { ...credentials, name, redirectTo: `${location.origin}/login` })
+        : await login(client, credentials);
+      if (!result.session) {
+        if (!isRegistration) throw new Error("Keine Sitzung erhalten.");
+        form.reset();
+        showAuthNotice("Falls die Registrierung möglich ist, erhältst du eine E-Mail zur Bestätigung. Bitte prüfe auch deinen Spam-Ordner und melde dich danach an.");
+        return;
+      }
+      try {
+        await ensureProfile(client, result.user);
+      } catch (error) {
+        console.error("Profil konnte nicht eingerichtet werden:", error);
+        showAuthNotice("Du bist angemeldet, aber dein Profil konnte nicht eingerichtet werden. Bitte versuche es erneut oder wende dich an den Support.");
+        return;
+      }
+      if (form.isConnected) navigate("/search");
+    } catch (error) {
+      console.error("Authentifizierung fehlgeschlagen:", error);
+      if (form.isConnected) showAuthNotice(authErrorMessage(error));
+    } finally {
+      if (form.isConnected) submit.disabled = false;
+    }
   });
 
   document.querySelector('[data-action="reset-password"]')?.addEventListener("click", (event) => {
@@ -1240,6 +1352,23 @@ function mountPage() {
 }
 
 document.addEventListener("click", (event) => {
+  const signOut = event.target.closest('[data-action="sign-out"]');
+  if (signOut) {
+    signOut.disabled = true;
+    getSupabase().auth.signOut().then(({ error }) => {
+      if (error) throw error;
+      currentSession = null;
+      updateAuthNavigation();
+      if (location.pathname === "/login" || location.pathname === "/register") mountPage();
+    }).catch((error) => {
+      console.error("Abmeldung fehlgeschlagen:", error);
+      const message = document.querySelector("#auth-navigation-error");
+      message.textContent = "Die Abmeldung ist fehlgeschlagen. Bitte versuche es erneut.";
+      message.hidden = false;
+      if (signOut.isConnected) signOut.disabled = false;
+    });
+    return;
+  }
   const searchForm = document.querySelector("#trip-search-form, #trip-form");
   if (searchForm && !event.composedPath().includes(searchForm)) closeLandingPopovers(searchForm);
   const link = event.target.closest('a[href^="/"]');
@@ -1268,4 +1397,41 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("popstate", mountPage);
+const isSignupCallback = new URLSearchParams(location.hash.slice(1)).get("type") === "signup";
 mountPage();
+try {
+  const client = getSupabase();
+  client.auth.onAuthStateChange((_event, session) => {
+    const previousUser = currentSession?.user.id;
+    currentSession = session;
+    updateAuthNavigation();
+    if (location.pathname === "/trips" && previousUser !== session?.user.id) {
+      setTimeout(() => {
+        if (location.pathname === "/trips") mountPage();
+      }, 0);
+    }
+  });
+  client.auth.getSession().then(async ({ data, error }) => {
+    if (error) throw error;
+    if (!data.session || (location.pathname !== "/login" && !isSignupCallback)) return;
+    try {
+      await ensureProfile(client, data.session.user);
+      if (location.pathname === "/login" || isSignupCallback) navigate("/search");
+    } catch (profileError) {
+      console.error("Profil konnte nicht eingerichtet werden:", profileError);
+      const message = "Du bist angemeldet, aber dein Profil konnte nicht eingerichtet werden. Bitte melde dich erneut an oder wende dich an den Support.";
+      if (document.querySelector("#auth-notice")) showAuthNotice(message);
+      else {
+        const notice = document.querySelector("#auth-navigation-error");
+        notice.textContent = message;
+        notice.hidden = false;
+      }
+    }
+  }).catch((error) => {
+    console.error("Sitzung konnte nicht geladen werden:", error);
+    showAuthNotice("Deine Sitzung konnte nicht geladen werden. Bitte versuche es erneut.");
+  });
+} catch (error) {
+  console.error("Supabase konnte nicht initialisiert werden:", error);
+  showAuthNotice("Die Anmeldung ist derzeit nicht verfügbar. Bitte versuche es später erneut.");
+}
