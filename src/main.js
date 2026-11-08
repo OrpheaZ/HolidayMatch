@@ -468,7 +468,7 @@ function searchPage() {
             </div>
             <label class="family-sort-control" for="sort-results">Sortieren nach
               <select id="sort-results" aria-label="Suchergebnisse sortieren">
-                <option value="relevance">Standard</option>
+                <option value="newest">Neueste zuerst</option>
                 <option value="soonest">Reisedatum (aufsteigend)</option>
               </select>
             </label>
@@ -777,7 +777,9 @@ async function loadPublicFamilies() {
   const families = new Map();
   const pageSize = 500;
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client.rpc("search_public_families_details").range(offset, offset + pageSize - 1);
+    const { data, error } = await client.rpc("search_public_families_newest")
+      .order("sort_position", { ascending: true })
+      .range(offset, offset + pageSize - 1);
     if (error) throw error;
     for (const family of data) families.set(family.trip_reference, family);
     if (data.length < pageSize) return [...families.values()];

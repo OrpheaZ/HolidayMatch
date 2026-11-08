@@ -44,13 +44,16 @@ and audited.
 ### Frontend integration
 
 The family search uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
-and calls `search_public_families()`; never expose a service-role key through a
+and calls `search_public_families_newest()`; never expose a service-role key through a
 `VITE_` variable. The RPC only returns public trips with explicit per-trip
 `trip_search_consent`, their destination, dates, languages, and children's
 approximate ages and optional genders. It does not expose names, birth years,
 email addresses, or internal user IDs. Results and filters are public, so
 combining their fields can make families identifiable.
-The landing page uses the same RPC to show up to four ongoing or upcoming
+The search defaults to newest-created trips first, without exposing creation
+timestamps; users can also sort by travel date. The trips page likewise lists
+the owner's newest-created trips first.
+The landing page uses `search_public_families_details()` to show up to four ongoing or upcoming
 shared trips, ordered by start date. Signed-in users do not see their own trips
 in these cards; development demo trips can also appear.
 The migration grants

@@ -9,7 +9,7 @@ export async function fetchOwnTrips(client, userId) {
   for (let offset = 0; ; offset += pageSize) {
     const tripResult = await client.from("trips").select(
       "id,user_id,start_date,end_date,is_public,destination_id,custom_destination,custom_region,legacy_region,accommodation,trip_languages,trip_children_data,description,interests,photo_path,destinations(name,region,country),trip_children(children(birth_year,gender)),trip_search_consent(share_family_details)"
-    ).eq("user_id", userId).order("start_date", { ascending: true }).order("id").range(offset, offset + pageSize - 1);
+    ).eq("user_id", userId).order("created_at", { ascending: false }).order("id").range(offset, offset + pageSize - 1);
     const page = unwrap(tripResult);
     trips.push(...page);
     if (page.length < pageSize) break;

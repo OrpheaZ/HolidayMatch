@@ -42,6 +42,7 @@ test("Abfrage beschränkt Reisen explizit auf den Benutzer und unterstützt best
     children: [{ age: 5, gender: null }], languages: ["Deutsch"], visible: true, detailsShared: true,
   }]);
   assert.ok(client.calls.some((call) => call[0] === "eq" && call[1] === "trips" && call[2] === "user_id" && call[3] === "user-1"));
+  assert.ok(client.calls.some((call) => call[0] === "order" && call[1] === "trips" && call[2] === "created_at" && call[3].ascending === false));
 });
 
 test("Eigene Reisen werden über die API-Grenze hinaus vollständig und stabil geladen", async () => {
@@ -63,7 +64,7 @@ test("Eigene Reisen werden über die API-Grenze hinaus vollständig und stabil g
     },
   };
   assert.equal((await fetchOwnTrips(client, "user")).length, 501);
-  assert.deepEqual(calls, ["start_date", "id", "start_date", "id"]);
+  assert.deepEqual(calls, ["created_at", "id", "created_at", "id"]);
 });
 
 test("Neue Reisen werden privat erstellt; Aktualisieren und Löschen sind auf Eigentümer beschränkt", async () => {
