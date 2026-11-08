@@ -27,8 +27,8 @@ test("Abfrage beschränkt Reisen explizit auf den Benutzer und unterstützt best
   const client = mockClient({
     trips: { data: [{
       id: "trip-1", start_date: "2027-07-12", end_date: "2027-07-22", is_public: true,
-      custom_destination: null, custom_region: null, trip_languages: null, trip_children_data: null,
-      destinations: { name: "Mallorca", region: "Alcúdia" },
+      destination_id: "destination-1", custom_destination: null, custom_region: null, legacy_region: null, accommodation: null, trip_languages: null, trip_children_data: null,
+      destinations: { name: "Mallorca", region: "Alcúdia", country: "Spanien" },
       trip_children: [{ children: { birth_year: 2022, gender: null } }],
       trip_search_consent: { share_family_details: true },
     }], error: null },
@@ -36,7 +36,8 @@ test("Abfrage beschränkt Reisen explizit auf den Benutzer und unterstützt best
   });
   const trips = await fetchOwnTrips(client, "user-1");
   assert.deepEqual(trips, [{
-    id: "trip-1", destination: "Mallorca", region: "Alcúdia", start: "2027-07-12", end: "2027-07-22",
+    id: "trip-1", destination: "Mallorca", country: "Spanien", region: "Alcúdia", start: "2027-07-12", end: "2027-07-22",
+    accommodation: "", legacyRegion: "", locationData: { destinationId: "destination-1", customDestination: null, customRegion: null },
     children: [{ age: 5, gender: null }], languages: ["Deutsch"], visible: true, detailsShared: true,
   }]);
   assert.ok(client.calls.some((call) => call[0] === "eq" && call[1] === "trips" && call[2] === "user_id" && call[3] === "user-1"));
@@ -44,15 +45,56 @@ test("Abfrage beschränkt Reisen explizit auf den Benutzer und unterstützt best
 
 test("Neue Reisen werden privat erstellt; Aktualisieren und Löschen sind auf Eigentümer beschränkt", async () => {
   const client = mockClient({ trips: { data: { id: "trip-1" }, error: null } });
-  const trip = { destination: "Burgas", region: "Burgas", start: "2027-05-01", end: "2027-05-31", children: [{ age: 5, gender: "" }], languages: ["Deutsch"] };
+  const trip = { destination: "Burgas", destinationId: null, accommodation: "", start: "2027-05-01", end: "2027-05-31", children: [{ age: 5, gender: "" }], languages: ["Deutsch"] };
   await saveOwnTrip(client, "user-1", trip);
   const inserted = client.calls.find((call) => call[0] === "insert")[2];
   assert.equal(inserted.user_id, "user-1");
   assert.equal(inserted.is_public, false);
+  assert.equal(inserted.accommodation, null);
   assert.deepEqual(inserted.trip_children_data, [{ age: 5, gender: null }]);
   await saveOwnTrip(client, "user-1", { ...trip, id: "trip-1" });
   await removeOwnTrip(client, "user-1", "trip-1");
   assert.equal(client.calls.filter((call) => call[0] === "eq" && call[2] === "user_id" && call[3] === "user-1").length, 2);
+});
+
+test("Freitext behält nur dann das Land einer Zielreferenz, wenn beides zusammenpasst", async () => {
+  const base = {
+    start_date: "2027-07-12", end_date: "2027-07-22", is_public: false,
+    destination_id: "destination-1", custom_region: null,
+    destinations: { name: "Mallorca", country: "Spanien", region: null },
+    trip_children: [], trip_search_consent: null,
+  };
+  const client = mockClient({
+    trips: { data: [
+      { ...base, id: "1", custom_destination: "mallorca" },
+      { ...base, id: "2", custom_destination: "Kreta" },
+      { ...base, id: "3", destination_id: null, destinations: null, custom_destination: "Berlin" },
+    ], error: null },
+    profiles: { data: null, error: null },
+  });
+  const trips = await fetchOwnTrips(client, "user-1");
+  assert.deepEqual(trips.map((trip) => [trip.destination, trip.country]), [
+    ["mallorca", "Spanien"], ["Kreta", ""], ["Berlin", ""],
+  ]);
+});
+
+test("Bearbeitung erhält frühere Ortsangaben und speichert Unterkunft getrennt", async () => {
+  const client = mockClient({ trips: { data: { id: "trip-1" }, error: null } });
+  const existing = { destination: "Mallorca", region: "Alcúdia", legacyRegion: "",
+    locationData: { destinationId: "destination-1", customDestination: null, customRegion: null } };
+  const trip = { id: "trip-1", existing, destination: "Mallorca", destinationId: "destination-1",
+    accommodation: "Hotel Sonne", start: "2027-07-12", end: "2027-07-22", children: [{ age: 5, gender: null }], languages: ["Deutsch"] };
+  await saveOwnTrip(client, "user-1", trip);
+  const unchanged = client.calls.find((call) => call[0] === "update")[2];
+  assert.equal(unchanged.destination_id, "destination-1");
+  assert.equal(unchanged.accommodation, "Hotel Sonne");
+  assert.equal(unchanged.legacy_region, null);
+  await saveOwnTrip(client, "user-1", { ...trip, destination: "Kreta", destinationId: null, accommodation: "" });
+  const changed = client.calls.filter((call) => call[0] === "update")[1][2];
+  assert.equal(changed.custom_destination, "Kreta");
+  assert.equal(changed.custom_region, null);
+  assert.equal(changed.legacy_region, "Alcúdia");
+  assert.equal(changed.accommodation, null);
 });
 
 test("Sichtbarkeit wird atomar per RPC geändert; Fehler werden weitergegeben", async () => {

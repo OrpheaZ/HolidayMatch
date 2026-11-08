@@ -5,10 +5,13 @@ import "./styles.css";
 import familySearchHero from "./assets/familien_suchen.png";
 import myTripsHero from "./assets/meiner_eisen.png";
 import landingMobileHero from "./assets/holidaybuddies_opener_mb.png";
+import destinationPlaceholder from "./assets/destination-placeholder.svg";
 import { getSupabase, setAuthPersistence } from "./lib/supabase.js";
 import { filterFamilies } from "./lib/family-search.js";
 import { register, login, ensureProfile, authErrorMessage } from "./lib/auth.js";
 import { fetchOwnTrips, saveOwnTrip, removeOwnTrip, setOwnTripVisibility } from "./lib/trips.js";
+import { fetchDestinationCatalog, destinationSuggestions, destinationPhoto, destinationPhotoMarkup, resolveDestination } from "./lib/destinations.js";
+import { requestFamilyContact, contactErrorMessage } from "./lib/contact.js";
 
 const app = document.querySelector("#app");
 const navItems = [
@@ -20,33 +23,48 @@ const navItems = [
 const icon = (name) => `<i class="bi bi-${name}" aria-hidden="true"></i>`;
 const favoriteFamilyIds = new Set();
 let currentSession = null;
+let destinationCatalog = [];
+let catalogPromise;
+function loadDestinationCatalog() {
+  if (!catalogPromise) {
+    catalogPromise = Promise.resolve().then(() => fetchDestinationCatalog(getSupabase())).then((rows) => {
+      destinationCatalog = rows;
+      return rows;
+    }).catch((error) => {
+      catalogPromise = null;
+      throw error;
+    });
+  }
+  return catalogPromise;
+}
+
+function photoMarkup(location, imageClass) {
+  const photo = destinationCatalog.length ? destinationPhoto(getSupabase(), destinationCatalog, location) : null;
+  return destinationPhotoMarkup(photo, location.destination, destinationPlaceholder, imageClass);
+}
 const exampleTrips = [
   {
     destination: "Mallorca",
     dates: "12.–22. Juli 2027",
-    image: "https://images.unsplash.com/photo-1672264430465-781cd9154896?auto=format&fit=crop&w=800&q=82",
-    imageAlt: "Türkisblaue Bucht an Mallorcas Küste",
+    country: "Spanien",
     children: [{ age: 5, gender: "Mädchen" }, { age: 7, gender: "Junge" }],
   },
   {
     destination: "Kreta",
     dates: "4.–14. August 2027",
-    image: "https://images.unsplash.com/photo-1725918568208-7d43d00bf916?auto=format&fit=crop&w=800&q=82",
-    imageAlt: "Strand und Berge an Kretas Küste",
+    country: "Griechenland",
     children: [{ age: 4, gender: "Mädchen" }, { age: 8, gender: "Mädchen" }],
   },
   {
     destination: "Gardasee",
     dates: "10.–20. Juli 2027",
-    image: "https://images.unsplash.com/photo-1659971810646-09efbdb6c7d4?auto=format&fit=crop&w=800&q=82",
-    imageAlt: "Blick auf einen See und die umliegenden Berge",
+    country: "Italien",
     children: [{ age: 6, gender: "Junge" }, { age: 9, gender: "Junge" }],
   },
   {
     destination: "Sardinien",
     dates: "2.–12. August 2027",
-    image: "https://images.unsplash.com/photo-1770412404097-170f88af6386?auto=format&fit=crop&w=800&q=82",
-    imageAlt: "Sardiniens felsige Küste mit klarem türkisfarbenem Wasser",
+    country: "Italien",
     children: [{ age: 6, gender: "Mädchen" }, { age: 8, gender: "Junge" }],
   },
 ];
@@ -114,12 +132,12 @@ function searchForm({ reset = false, trip = false } = {}) {
   return `
     ${trip ? '<div class="trip-search trip-form-fields">' : '<form class="trip-search" id="trip-search-form">'}
       <div class="search-field destination-field">
-        <label for="destination">${icon("geo-alt")} Reiseziel oder Hotel</label>
+        <label for="destination">${icon("geo-alt")} ${trip ? "Reiseziel" : "Reiseziel oder Hotel"}</label>
         <div class="landing-destination-control">
-          <input id="destination" name="destination" type="search" placeholder="Ziel oder Hotel eingeben" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions"${trip ? ' maxlength="150" required' : ""}>
+          <input id="destination" name="destination" type="search" placeholder="${trip ? "z. B. Kreta, Griechenland" : "Ziel oder Hotel eingeben"}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions"${trip ? ' maxlength="150" required' : ""}>
           <button type="button" class="landing-map-toggle" data-action="map" aria-label="Reiseziele auf einer Karte auswählen" aria-expanded="false" aria-controls="destination-map">${icon("map")}</button>
         </div>
-        <div class="landing-suggestions landing-popover" id="destination-suggestions" role="listbox" aria-label="Vorschläge für Reiseziel oder Hotel" hidden></div>
+        <div class="landing-suggestions landing-popover" id="destination-suggestions" role="listbox" aria-label="${trip ? "Vorschläge für Reiseziel" : "Vorschläge für Reiseziel oder Hotel"}" hidden></div>
         <div class="landing-map landing-popover" id="destination-map" hidden>
           <strong>Reiseziel auf der Karte wählen</strong>
           <p>Schematische Übersicht der verfügbaren Beispielziele</p>
@@ -136,8 +154,8 @@ function searchForm({ reset = false, trip = false } = {}) {
         </div>
       </div>
       ${trip ? `<div class="search-field trip-region-field">
-        <label for="trip-region">${icon("geo-alt")} Ort / Region</label>
-        <input id="trip-region" name="region" type="text" placeholder="z. B. Alcúdia, Mallorca" maxlength="150" required>
+        <label for="trip-accommodation">${icon("building")} Hotel / Unterkunft <span>(optional)</span></label>
+        <input id="trip-accommodation" name="accommodation" type="text" placeholder="Name der Unterkunft" maxlength="150">
       </div>` : ""}
       <div class="search-field date-field">
         <span class="search-field-label" id="landing-date-label">${icon("calendar3")} Reisezeitraum</span>
@@ -261,7 +279,7 @@ function landingPage() {
           <div class="planned-trips-grid">
             ${exampleTrips.map((trip) => `
               <article class="planned-trip-card">
-                <img class="planned-trip-image" src="${trip.image}" alt="${trip.imageAlt}" loading="lazy" decoding="async">
+                <figure class="destination-photo planned-trip-photo" data-example-photo="${trip.destination}">${photoMarkup(trip, "planned-trip-image")}</figure>
                 <div class="planned-trip-content">
                   <h3>${trip.destination}</h3>
                   <p class="planned-trip-date">${icon("calendar3")}<span>${trip.dates}</span></p>
@@ -397,7 +415,7 @@ function formatDate(date) {
 }
 
 function familyCard(family) {
-  const children = family.children.map((child) => `ca. ${child.age} Jahre${child.gender ? ` (${child.gender})` : ""}`).join(", ");
+  const children = family.children.map((child) => `${child.age} Jahre${child.gender ? ` (${child.gender})` : ""}`).join(", ");
   const date = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric" });
   const startDate = new Date(`${family.start_date}T12:00:00`);
   const endDate = new Date(`${family.end_date}T12:00:00`);
@@ -407,11 +425,10 @@ function familyCard(family) {
     ? `${new Intl.DateTimeFormat("de-DE", { day: "numeric" }).format(startDate)}.–${date.format(endDate)}`
     : `${date.format(startDate)} – ${date.format(endDate)}`;
   const isFavorite = favoriteFamilyIds.has(family.trip_reference);
-  const image = exampleTrips.find((trip) => family.destination.includes(trip.destination))?.image ?? exampleTrips[0].image;
   const location = [family.region, family.destination, family.country].filter(Boolean).join(", ");
   return `
     <article class="family-result-card">
-      <img class="family-result-image" src="${image}" alt="Symbolbild eines Urlaubsortes" loading="lazy" decoding="async">
+      <figure class="destination-photo family-result-photo">${photoMarkup(family, "family-result-image")}</figure>
       <div class="family-result-content">
         <div class="family-result-heading">
           <div class="family-result-name">${icon("people-fill")}<h3>Familie</h3></div>
@@ -425,10 +442,10 @@ function familyCard(family) {
           <span>${icon("people-fill")}<span>${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</span></span>
           <span>${icon("globe2")}<span>${escapeHTML(family.languages.join(", ") || "Keine Sprachen angegeben")}</span></span>
         </div>
-        <p class="family-result-note">Altersangaben können ungefähre Werte sein.</p>
-        <a class="family-contact-button" href="/login" aria-label="Anmelden, um eine Familie zu kontaktieren">
-          ${icon("chat-dots")} Kontakt anfragen <span class="family-contact-hint">Anmeldung erforderlich</span>
-        </a>
+        <button class="family-contact-button" type="button" data-contact="${escapeHTML(family.trip_reference)}">
+          ${icon("chat-dots")} Kontakt anfragen
+        </button>
+        <p data-contact-status role="status" hidden></p>
       </div>
     </article>`;
 }
@@ -563,6 +580,8 @@ function myTripsPage() {
           </div>
           <input type="hidden" name="id">
           <div class="shared-search">${searchForm({ trip: true })}</div>
+          <p id="trip-destinations-notice" role="status" hidden></p>
+          <p id="trip-legacy-notice" role="status" hidden></p>
           <p class="trip-form-message" id="trip-form-message" role="status" hidden></p>
           <div class="trip-dialog-actions">
             <button class="btn btn-outline-primary" type="button" data-trip-action="close">Abbrechen</button>
@@ -594,14 +613,16 @@ function renderMyTrips(myTrips) {
     });
     return `
       <article class="my-trip-card">
-        <div class="my-trip-photo">
-          <img src="${escapeHTML(exampleTrips.find((item) => trip.destination.includes(item.destination))?.image ?? exampleTrips[0].image)}" alt="Symbolbild eines Urlaubsortes" loading="lazy">
+        <figure class="destination-photo my-trip-photo">
+          ${photoMarkup({ destination: trip.destination, country: trip.country, destinationId: trip.locationData.destinationId }, "")}
           <span class="my-trip-status${past ? " is-past" : ""}">${icon(past ? "calendar-check" : "calendar-event")}${past ? "Vergangen" : "Bevorstehend"}</span>
-        </div>
+        </figure>
         <div class="my-trip-main">
           <div class="my-trip-title">
             <h2>${escapeHTML(trip.destination)}</h2>
-            <p>${icon("geo-alt-fill")} ${escapeHTML(trip.region)}</p>
+            ${trip.accommodation ? `<p>${icon("building")} ${escapeHTML(trip.accommodation)}</p>` : ""}
+            ${trip.region ? `<p>${icon("geo-alt-fill")} ${escapeHTML(trip.region)}</p>` : ""}
+            ${trip.legacyRegion ? `<p>Frühere Orts-/Regionsangabe: ${escapeHTML(trip.legacyRegion)}</p>` : ""}
           </div>
           <div class="my-trip-details">
             <div class="my-trip-detail">
@@ -739,14 +760,14 @@ function closeLandingPopovers(form, except = null) {
   }
 }
 
-function setupLandingSearch(form, { fromQuery = true } = {}) {
+function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
   const childAgeList = form.querySelector("#child-age-list");
   const destination = form.querySelector("#destination");
   const suggestions = form.querySelector("#destination-suggestions");
   const map = form.querySelector("#destination-map");
   const start = form.elements.namedItem("start");
   const end = form.elements.namedItem("end");
-  let values = [...new Set(exampleTrips.map((trip) => trip.destination))];
+  let values = trip ? [] : [...new Set(exampleTrips.map((trip) => trip.destination))].sort((a, b) => a.localeCompare(b, "de"));
   const dateFormatter = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
   const monthFormatter = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
   const dayFormatter = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -969,7 +990,12 @@ function setupLandingSearch(form, { fromQuery = true } = {}) {
   updateSummary();
   return {
     setDestinations(families) {
-      values = [...new Set(families.flatMap((family) => [family.destination, family.region]).filter(Boolean))];
+      values = [...new Set(families.flatMap((family) => [family.destination, family.region]).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
+      if (!suggestions.hidden) showSuggestions();
+    },
+    setTripDestinations(destinations) {
+      values = destinations.map((item) => item.label).sort((a, b) => a.localeCompare(b, "de"));
+      if (!suggestions.hidden) showSuggestions();
     },
     setTrip(trip) {
       childAgeList.innerHTML = childEntry(1);
@@ -1011,6 +1037,14 @@ function mountPage() {
   const searchControls = searchFormElement ? setupLandingSearch(searchFormElement) : null;
 
   if (path === "/") {
+    const grid = document.querySelector(".planned-trips-grid");
+    loadDestinationCatalog().then(() => {
+      if (!grid.isConnected) return;
+      grid.querySelectorAll("[data-example-photo]").forEach((figure) => {
+        const trip = exampleTrips.find((item) => item.destination === figure.dataset.examplePhoto);
+        figure.innerHTML = photoMarkup(trip, "planned-trip-image");
+      });
+    }).catch((error) => console.error("Reisezielbilder konnten nicht geladen werden:", error));
     document.querySelector(".hero-actions")?.addEventListener("click", (event) => {
       const link = event.target.closest('a[href^="#"]');
       if (!link) return;
@@ -1055,12 +1089,37 @@ function mountPage() {
       errorMessage.textContent = "Die Familien konnten nicht geladen werden. Bitte prüfe deine Verbindung und versuche es erneut.";
       errorMessage.hidden = false;
     });
+    loadDestinationCatalog().then(() => {
+      if (results.isConnected) renderFamilies();
+    }).catch((error) => console.error("Reisezielbilder konnten nicht geladen werden:", error));
     searchFormElement.addEventListener("family-search-update", renderFamilies);
     searchFormElement.addEventListener("reset", (event) => {
       event.preventDefault();
       navigate("/search");
     });
-    document.querySelector("#family-results").addEventListener("click", (event) => {
+    document.querySelector("#family-results").addEventListener("click", async (event) => {
+      const contact = event.target.closest("[data-contact]");
+      if (contact) {
+        const status = contact.parentElement.querySelector("[data-contact-status]");
+        contact.disabled = true;
+        status.hidden = false;
+        status.textContent = "Kontaktanfrage wird gespeichert …";
+        try {
+          const sent = await requestFamilyContact(getSupabase(), contact.dataset.contact);
+          if (!contact.isConnected) return;
+          if (!sent) {
+            navigate("/login");
+            return;
+          }
+          status.textContent = "Deine Kontaktanfrage wurde gespeichert.";
+        } catch (error) {
+          console.error("Kontaktanfrage fehlgeschlagen:", error);
+          if (contact.isConnected) status.textContent = contactErrorMessage(error);
+        } finally {
+          if (contact.isConnected) contact.disabled = false;
+        }
+        return;
+      }
       const button = event.target.closest("[data-favorite]");
       if (!button) return;
       const familyId = button.dataset.favorite;
@@ -1080,8 +1139,9 @@ function mountPage() {
     const destinationInput = form.elements.namedItem("destination");
     const startInput = form.elements.namedItem("start");
     const endInput = form.elements.namedItem("end");
-    const tripSearch = setupLandingSearch(form, { fromQuery: false });
+    const tripSearch = setupLandingSearch(form, { fromQuery: false, trip: true });
     let myTrips = [];
+    let destinations = [];
     let userId = null;
     createButtons.forEach((button) => { button.disabled = true; });
 
@@ -1105,6 +1165,18 @@ function mountPage() {
         }
         userId = data.user.id;
         await refreshTrips();
+        try {
+          destinations = destinationSuggestions(await loadDestinationCatalog());
+          if (!list.isConnected) return;
+          tripSearch.setTripDestinations(destinations);
+          list.innerHTML = renderMyTrips(myTrips);
+        } catch (error) {
+          console.error("Reisezielvorschläge konnten nicht geladen werden:", error);
+          if (!list.isConnected) return;
+          const notice = form.querySelector("#trip-destinations-notice");
+          notice.textContent = "Reisezielvorschläge sind derzeit nicht verfügbar. Du kannst dein Reiseziel selbst eingeben.";
+          notice.hidden = false;
+        }
         if (list.isConnected) createButtons.forEach((button) => { button.disabled = false; });
       } catch (error) {
         console.error("Reisen konnten nicht geladen werden:", error);
@@ -1129,13 +1201,17 @@ function mountPage() {
         form.reset();
         form.elements.namedItem("id").value = trip?.id ?? "";
         form.elements.namedItem("destination").value = trip?.destination ?? "";
-        form.elements.namedItem("region").value = trip?.region ?? "";
+        form.elements.namedItem("accommodation").value = trip?.accommodation ?? "";
         form.elements.namedItem("start").value = trip?.start ?? "";
         form.elements.namedItem("end").value = trip?.end ?? "";
         tripSearch.setTrip(trip);
         document.querySelector("#trip-dialog-title").textContent =
           trip ? "Reise bearbeiten" : "Neue Reise erstellen";
         document.querySelector("#trip-form-message").hidden = true;
+        const legacyNotice = form.querySelector("#trip-legacy-notice");
+        const oldRegions = [trip?.region, trip?.legacyRegion].filter(Boolean);
+        legacyNotice.textContent = oldRegions.length ? `Bisherige Orts-/Regionsangabe: ${oldRegions.join("; ")}. Sie bleibt erhalten.` : "";
+        legacyNotice.hidden = !oldRegions.length;
         destinationInput.setCustomValidity("");
         endInput.setCustomValidity("");
         dialog.showModal();
@@ -1219,16 +1295,21 @@ function mountPage() {
         return;
       }
       const destination = formData.get("destination").toString().trim();
-      const region = formData.get("region").toString().trim();
-      if (!destination || !region) {
-        message.textContent = "Bitte gib ein Reiseziel und einen Ort oder eine Region ein.";
+      const accommodation = formData.get("accommodation").toString().trim();
+      if (!destination) {
+        message.textContent = "Bitte gib ein Reiseziel ein.";
         message.hidden = false;
         return;
       }
+      const resolved = existingTrip && destination === existingTrip.destination
+        ? { label: destination, destinationId: existingTrip.locationData.destinationId }
+        : resolveDestination(destination, destinations);
       const updatedTrip = {
         id: existingTrip?.id,
-        destination,
-        region,
+        existing: existingTrip,
+        destination: resolved.label,
+        destinationId: resolved.destinationId,
+        accommodation,
         start: formData.get("start").toString(),
         end: formData.get("end").toString(),
         children: children.map((child) => ({ ...child, age: Number(child.age) })),
@@ -1396,6 +1477,14 @@ document.addEventListener("keydown", (event) => {
   closeLandingPopovers(form);
 });
 
+app.addEventListener("error", (event) => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.hasAttribute("data-destination-photo")
+    || image.dataset.fallbackApplied) return;
+  image.dataset.fallbackApplied = "true";
+  image.src = destinationPlaceholder;
+  image.alt = "Neutrale Platzhaltergrafik";
+}, true);
 window.addEventListener("popstate", mountPage);
 const isSignupCallback = new URLSearchParams(location.hash.slice(1)).get("type") === "signup";
 mountPage();
@@ -1405,9 +1494,9 @@ try {
     const previousUser = currentSession?.user.id;
     currentSession = session;
     updateAuthNavigation();
-    if (location.pathname === "/trips" && previousUser !== session?.user.id) {
+    if ((location.pathname === "/trips" || location.pathname === "/search") && previousUser !== session?.user.id) {
       setTimeout(() => {
-        if (location.pathname === "/trips") mountPage();
+        if (location.pathname === "/trips" || location.pathname === "/search") mountPage();
       }, 0);
     }
   });

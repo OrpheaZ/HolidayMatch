@@ -6,7 +6,7 @@ function unwrap(result) {
 export async function fetchOwnTrips(client, userId) {
   const [tripResult, profileResult] = await Promise.all([
     client.from("trips").select(
-      "id,user_id,start_date,end_date,is_public,custom_destination,custom_region,trip_languages,trip_children_data,destinations(name,region),trip_children(children(birth_year,gender)),trip_search_consent(share_family_details)"
+      "id,user_id,start_date,end_date,is_public,destination_id,custom_destination,custom_region,legacy_region,accommodation,trip_languages,trip_children_data,destinations(name,region,country),trip_children(children(birth_year,gender)),trip_search_consent(share_family_details)"
     ).eq("user_id", userId).order("start_date", { ascending: true }),
     client.from("profiles").select("languages").eq("user_id", userId).maybeSingle(),
   ]);
@@ -15,7 +15,19 @@ export async function fetchOwnTrips(client, userId) {
   return trips.map((trip) => ({
     id: trip.id,
     destination: trip.custom_destination ?? trip.destinations?.name ?? "",
+    country: !trip.custom_destination || [
+      trip.destinations?.name,
+      `${trip.destinations?.name}, ${trip.destinations?.country}`,
+    ].some((value) => value?.trim().toLocaleLowerCase("de") === trip.custom_destination.trim().toLocaleLowerCase("de"))
+      ? trip.destinations?.country ?? "" : "",
     region: trip.custom_region ?? trip.destinations?.region ?? "",
+    accommodation: trip.accommodation ?? "",
+    legacyRegion: trip.legacy_region ?? "",
+    locationData: {
+      destinationId: trip.destination_id,
+      customDestination: trip.custom_destination,
+      customRegion: trip.custom_region,
+    },
     start: trip.start_date,
     end: trip.end_date,
     children: trip.trip_children_data ?? trip.trip_children.map(({ children }) => ({
@@ -29,10 +41,23 @@ export async function fetchOwnTrips(client, userId) {
 }
 
 export async function saveOwnTrip(client, userId, trip) {
+  const unchanged = trip.existing && trip.destination === trip.existing.destination;
+  const location = unchanged
+    ? {
+        destination_id: trip.existing.locationData.destinationId,
+        custom_destination: trip.existing.locationData.customDestination,
+        custom_region: trip.existing.locationData.customRegion,
+        legacy_region: trip.existing.legacyRegion || null,
+      }
+    : {
+        destination_id: trip.destinationId,
+        custom_destination: trip.destination,
+        custom_region: null,
+        legacy_region: trip.existing?.legacyRegion || trip.existing?.region || null,
+      };
   const values = {
-    destination_id: null,
-    custom_destination: trip.destination,
-    custom_region: trip.region,
+    ...location,
+    accommodation: trip.accommodation || null,
     trip_languages: trip.languages,
     trip_children_data: trip.children.map(({ age, gender }) => ({ age, gender: gender || null })),
     start_date: trip.start,

@@ -59,14 +59,31 @@ URL allow list for every deployment. Email confirmation and SMTP depend on the
 project's Auth settings; the built-in email service has restricted delivery and
 rate limits. The trips page loads and saves only the current user's trips through
 RLS. New trips are private; publishing requires explicit confirmation, and
-turning visibility off revokes the search consent. Free-text destinations,
-per-trip languages, and ages entered in the trip form are stored on the trip;
+turning visibility off revokes the search consent. The trip form suggests existing
+destinations without creating catalog entries; a free-text destination can also
+be entered. Accommodation is optional and stored separately on the private trip,
+not exposed by the public family-search RPC. Future accommodation matching needs
+an explicit consent and a privacy-reviewed search interface. Previous region
+information is retained when a destination is changed. Per-trip languages and
+ages entered in the trip form are stored on the trip;
 the ages are not linked to the separate child profiles. Previously entered
 prototype trips were only in memory and cannot be recovered after a reload.
-Password recovery and the contact workflow remain prototypes. Test RLS and consent with separate accounts before
+The search excludes the signed-in user's own trips, while anonymous visitors can
+see all eligible trips. Signed-in users can save one contact request per trip;
+the recipient-facing inbox and notifications are not yet implemented. Password
+recovery remains a prototype. Test RLS and consent with separate accounts before
 using real family data.
 
 ### Development demo data
+
+Destination thumbnails are AI-generated illustrations, not necessarily
+accurate depictions of the locations. The public `destination-images` bucket
+stores 640 × 400 WebP files under `generated/`; destination records mark them
+with `image_source = 'AI generated'` and no attribution or source URL. The
+frontend only displays images with that explicit marker and path prefix;
+other sources fall back to the neutral placeholder. The former Wikimedia
+importer is retained for reference but its images are not displayed by the
+frontend. Never commit the local `.env` file.
 
 `scripts/seed-demo-data.mjs` uses the Supabase Auth Admin API and server-side
 REST API; it requires Node.js 20 or newer. It refuses to run if any Auth user or

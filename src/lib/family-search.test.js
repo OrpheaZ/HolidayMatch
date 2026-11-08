@@ -25,3 +25,7 @@ test("Mehrere Kinder benötigen unterschiedliche Treffer; optionale Angaben blei
   assert.deepEqual(filterFamilies(families, new URLSearchParams("language=Spanisch")), []);
   assert.deepEqual(filterFamilies(families, new URLSearchParams()), families);
 });
+
+test("Ziel und Land bleiben mit oder ohne Komma auffindbar", () => {
+  assert.deepEqual(filterFamilies(families, new URLSearchParams("destination=Kreta%2C%20Griechenland")), [families[1]]);
+});

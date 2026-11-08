@@ -1,5 +1,6 @@
 export function filterFamilies(families, params) {
-  const destination = (params.get("destination") ?? "").trim().toLocaleLowerCase("de");
+  const normalizeDestination = (value) => value.toLocaleLowerCase("de").replace(/[,\s]+/g, " ").trim();
+  const destination = normalizeDestination(params.get("destination") ?? "");
   const ages = params.getAll("childAge");
   const genders = params.getAll("childGender");
   const requested = Array.from({ length: Math.max(ages.length, genders.length) }, (_, index) => ({
@@ -21,8 +22,7 @@ export function filterFamilies(families, params) {
         && (!child.gender || child.gender === candidate.gender)
         && matchesChildren(index + 1, available.filter((_, i) => i !== candidateIndex)));
     };
-    return (!destination || `${family.destination} ${family.country} ${family.region ?? ""}`
-      .toLocaleLowerCase("de").includes(destination))
+    return (!destination || normalizeDestination(`${family.destination} ${family.country ?? ""} ${family.region ?? ""}`).includes(destination))
       && (!languages.length || languages.some((language) => family.languages.includes(language)))
       && matchesChildren(0, family.children)
       && (!ageRange || family.children.some((child) => child.age >= minAge && child.age <= maxAge))
