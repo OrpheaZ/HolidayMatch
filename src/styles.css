@@ -447,6 +447,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .trip-form-message { margin: 10px 0 0; color: #ae4c35; font-size: .75rem; }
 .trip-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
 .trip-dialog-actions .btn { padding: .6rem 1rem; font-size: .8rem; }
+.trip-extra-form { margin-top: 16px; }
+.trip-extra-form p { margin: 4px 0 8px; color: #607975; font-size: .78rem; line-height: 1.5; }
+.trip-extra-form textarea { border-color: #dfe9e4; border-radius: 9px; font-size: .85rem; }
+.trip-interest-options { margin-top: 16px; }
+.trip-interest-options legend { margin: 0; color: #405852; font-size: .76rem; font-weight: 700; }
+.trip-extra-form label span, .trip-interest-options legend span { color: #758b85; font-weight: 400; }
+.trip-dialog .trip-interest-options .btn-check { position: absolute; width: 1px; min-height: 0; padding: 0; }
+.trip-dialog .trip-interest-options label { display: inline-flex; margin: 0; color: var(--teal); }
+.trip-dialog .trip-interest-options .btn-check:checked + label { color: #fff; }
+.trip-dialog .trip-photo-remove { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.trip-dialog .trip-photo-remove[hidden] { display: none; }
+.trip-dialog .trip-photo-remove input { width: auto; min-height: 0; }
+.trip-extra-details { margin-top: 10px; color: #526e6b; font-size: .78rem; }
+.trip-extra-details summary { color: #087e75; font-weight: 700; cursor: pointer; }
+.trip-extra-details p { margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.trip-extra-details summary:focus-visible { outline: 3px solid #f4ae75; outline-offset: 3px; border-radius: 4px; }
 .trip-visibility-modal .modal-content { border: 0; border-radius: 20px; box-shadow: 0 24px 80px rgba(24, 55, 53, .2); }
 .trip-visibility-modal .modal-header { gap: 12px; padding: 24px 24px 10px; border: 0; }
 .trip-visibility-modal .modal-title { color: var(--ink); font-size: 1.25rem; font-weight: 800; }

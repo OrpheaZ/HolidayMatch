@@ -15,6 +15,7 @@ import { fetchDestinationCatalog, destinationSuggestions, destinationPhoto, dest
 import { requestFamilyContact, contactErrorMessage, fetchPersonalReferences, setFamilyFavorite, fetchReceivedContacts } from "./lib/contact.js";
 import { paginate, paginationMarkup } from "./lib/pagination.js";
 import { fetchPlannedTrips, localDateString } from "./lib/planned-trips.js";
+import { uploadTripPhoto, removeTripPhoto, hydrateTripPhotos, releaseTripPhotos } from "./lib/trip-photos.js";
 
 const app = document.querySelector("#app");
 const navItems = [
@@ -43,7 +44,21 @@ function loadDestinationCatalog() {
 
 function photoMarkup(location, imageClass) {
   const photo = destinationCatalog.length ? destinationPhoto(getSupabase(), destinationCatalog, location) : null;
-  return destinationPhotoMarkup(photo, location.destination, destinationPlaceholder, imageClass);
+  const markup = destinationPhotoMarkup(photo, location.destination, destinationPlaceholder, imageClass);
+  return location.photo_path
+    ? markup.replace(" data-destination-photo", ` data-trip-photo-path="${escapeHTML(location.photo_path)}" data-photo-fallback="${escapeHTML(photo?.url ?? destinationPlaceholder)}" data-destination-photo`)
+    : markup;
+}
+const tripInterests = ["Strand", "Schwimmen", "Spielplatz", "Sandburgen", "Wassersport", "Wandern", "Natur", "Tiere", "Fahrradfahren", "Ausflüge", "Kultur", "Essen", "Brettspiele", "Basteln", "Freizeitpark", "Sport", "Entspannung", "Camping"];
+
+function tripDetailsMarkup(trip) {
+  const description = trip.description?.trim();
+  const interests = trip.interests ?? [];
+  return `<details class="trip-extra-details">
+    <summary>Mehr über diese Reise</summary>
+    ${description ? `<p>${escapeHTML(description)}</p>` : "<p>Keine Beschreibung angegeben.</p>"}
+    ${interests.length ? `<p><strong>Interessen:</strong> ${escapeHTML(interests.join(", "))}</p>` : ""}
+  </details>`;
 }
 function header() {
   const links = navItems.map(({ href, label }) =>
@@ -405,6 +420,7 @@ function familyCard(family, favorites = new Set(), contacted = new Set(), person
           <span>${icon("people-fill")}<span>${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</span></span>
           <span>${icon("globe2")}<span>${escapeHTML(family.languages.join(", ") || "Keine Sprachen angegeben")}</span></span>
         </div>
+        ${tripDetailsMarkup(family)}
         ${isContacted ? '<p class="contacted-label" role="status">Kontaktiert</p>' : `<button class="family-contact-button" type="button" data-contact="${escapeHTML(family.trip_reference)}"${personalReady ? "" : " disabled"}>
           ${icon("chat-dots")} Kontakt anfragen
         </button>`}
@@ -586,6 +602,23 @@ function myTripsPage() {
           </div>
           <input type="hidden" name="id">
           <div class="shared-search">${searchForm({ trip: true })}</div>
+          <div class="trip-extra-form">
+            <label for="trip-description">Beschreibung der Reise oder Suche <span>(optional)</span></label>
+            <p>Erzähle, wie ihr euren Urlaub verbringen möchtet und wen ihr gern kennenlernen würdet. Beschreibe zum Beispiel, welche Aktivitäten euren Kindern Spaß machen. Bitte teile keine Kontaktdaten oder sensiblen persönlichen Angaben.</p>
+            <textarea class="form-control" id="trip-description" name="description" rows="4" maxlength="1200" placeholder="Wir freuen uns auf gemeinsame Strandtage und Ausflüge …"></textarea>
+            <fieldset class="trip-interest-options">
+              <legend>Interessen <span>(optional)</span></legend>
+              <p>Wähle die Aktivitäten, die zu eurer Familie passen.</p>
+              <div class="d-flex flex-wrap gap-2">${tripInterests.map((interest, index) =>
+    `<input class="btn-check" type="checkbox" name="tripInterest" id="trip-interest-${index}" value="${escapeHTML(interest)}" autocomplete="off"><label class="btn btn-outline-primary btn-sm" for="trip-interest-${index}">${escapeHTML(interest)}</label>`).join("")}</div>
+              <label for="trip-custom-interests">Weitere Interessen <span>(optional, durch Kommas getrennt)</span></label>
+              <input class="form-control" id="trip-custom-interests" name="customInterests" type="text" maxlength="1000" placeholder="z. B. Schnorcheln, Musik">
+            </fieldset>
+            <label for="trip-photo">Eigenes Reisefoto <span>(optional)</span></label>
+            <p>Wähle ein JPEG-, PNG- oder WebP-Bild bis 5 MB. Wenn du kein Foto hochlädst, verwenden wir das Bild des Reiseziels oder eine neutrale Platzhaltergrafik. Lade nur Bilder hoch, die du teilen darfst; bei einer Freigabe ist das Foto öffentlich sichtbar.</p>
+            <input class="form-control" id="trip-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
+            <label class="trip-photo-remove" id="trip-photo-remove-label" hidden><input type="checkbox" name="removePhoto"> Eigenes Foto entfernen</label>
+          </div>
           <p id="trip-destinations-notice" role="status" hidden></p>
           <p class="trip-form-message" id="trip-form-message" role="status" hidden></p>
           <div class="trip-dialog-actions">
@@ -619,7 +652,7 @@ function renderMyTrips(myTrips) {
     return `
       <article class="my-trip-card">
         <figure class="destination-photo my-trip-photo">
-          ${photoMarkup({ destination: trip.destination, country: trip.country, destinationId: trip.locationData.destinationId }, "")}
+          ${photoMarkup({ destination: trip.destination, country: trip.country, destinationId: trip.locationData.destinationId, photo_path: trip.photo_path }, "")}
           <span class="my-trip-status${past ? " is-past" : ""}">${icon(past ? "calendar-check" : "calendar-event")}${past ? "Vergangen" : "Bevorstehend"}</span>
         </figure>
         <div class="my-trip-main">
@@ -644,6 +677,7 @@ function renderMyTrips(myTrips) {
               <span>${escapeHTML(trip.languages.join(", "))}</span>
             </div>
           </div>
+          ${tripDetailsMarkup(trip)}
         </div>
         <div class="my-trip-controls">
           <label class="my-trip-visibility">
@@ -743,7 +777,7 @@ async function loadPublicFamilies() {
   const families = new Map();
   const pageSize = 500;
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client.rpc("search_public_families").range(offset, offset + pageSize - 1);
+    const { data, error } = await client.rpc("search_public_families_details").range(offset, offset + pageSize - 1);
     if (error) throw error;
     for (const family of data) families.set(family.trip_reference, family);
     if (data.length < pageSize) return [...families.values()];
@@ -1049,6 +1083,7 @@ function mountPage() {
     let requestId = 0;
     const renderPlannedTrips = () => {
       if (!grid.isConnected || !plannedTrips) return;
+      releaseTripPhotos(grid);
       grid.querySelectorAll(".planned-trip-card, .planned-trips-message").forEach((item) => item.remove());
       if (!plannedTrips.length) {
         cta.insertAdjacentHTML("beforebegin", '<p class="planned-trips-message" role="status">Aktuell sind keine bevorstehenden Reisen für die Familiensuche freigegeben.</p>');
@@ -1067,8 +1102,10 @@ function mountPage() {
                   <span>${child.gender ? `${escapeHTML(child.gender)} · ` : ""}${escapeHTML(child.age)} J.</span>
                 </span>`).join("")}
             </div>
+            ${tripDetailsMarkup(trip)}
           </div>
         </article>`).join(""));
+      hydrateTripPhotos(getSupabase(), grid);
     };
     const loadTrips = async () => {
       const currentRequest = ++requestId;
@@ -1086,7 +1123,7 @@ function mountPage() {
       }
     };
     document.addEventListener("landing-auth-changed", loadTrips);
-    cleanupPage = () => { document.removeEventListener("landing-auth-changed", loadTrips); };
+    cleanupPage = () => { document.removeEventListener("landing-auth-changed", loadTrips); releaseTripPhotos(grid); };
     loadTrips();
     loadDestinationCatalog().then(() => {
       if (!grid.isConnected) return;
@@ -1133,7 +1170,9 @@ function mountPage() {
       }
       const page = paginate(matches, pageNumber);
       pageNumber = page.current;
+      releaseTripPhotos(results);
       results.innerHTML = page.items.map((family) => familyCard(family, favorites, contacted, personalReady)).join("");
+      hydrateTripPhotos(getSupabase(), results);
       pagination.innerHTML = paginationMarkup(page.current, page.pages, "Familienseiten");
       count.textContent = `${matches.length} ${matches.length === 1 ? "Familie" : "Familien"} passend zu eurer Suche`;
       empty.classList.toggle("d-none", matches.length > 0);
@@ -1251,6 +1290,7 @@ function mountPage() {
       if (button && !button.disabled) { pageNumber = Number(button.dataset.page); renderFamilies(); }
     });
     document.querySelector("#sort-results").addEventListener("change", () => { pageNumber = 1; renderFamilies(); });
+    cleanupPage = () => { releaseTripPhotos(results); };
   }
 
   if (path === "/trips") {
@@ -1303,6 +1343,8 @@ function mountPage() {
     cleanupPage = () => {
       visibilityModal.hide();
       visibilityModal.dispose();
+      releaseTripPhotos(list);
+      releaseTripPhotos(contactedList);
     };
 
     const showListError = (text) => {
@@ -1312,12 +1354,15 @@ function mountPage() {
     const renderTrips = () => {
       const page = paginate(myTrips, tripPage);
       tripPage = page.current;
+      releaseTripPhotos(list);
       list.innerHTML = renderMyTrips(page.items);
+      hydrateTripPhotos(getSupabase(), list);
       tripsPagination.innerHTML = paginationMarkup(page.current, page.pages, "Reiseseiten");
     };
     const renderContacted = () => {
       const page = paginate(contactedFamilies, contactPage);
       contactPage = page.current;
+      releaseTripPhotos(contactedList);
       contactedList.innerHTML = page.items.length ? page.items.map((family) => {
         const available = family.destination !== null;
         const location = [family.region, family.destination, family.country].filter(Boolean).join(", ");
@@ -1335,11 +1380,13 @@ function mountPage() {
               <p>${icon("calendar3")} ${escapeHTML(tripDateRange(family.start_date, family.end_date))}</p>
               <p>${icon("people-fill")} ${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</p>
               <p>${icon("globe2")} ${escapeHTML(family.languages?.join(", ") || "Keine Sprachen angegeben")}</p>` : ""}
+            ${available ? tripDetailsMarkup(family) : ""}
           </div>
           <span class="contacted-label">Kontaktiert am ${escapeHTML(contactedDate)}</span>
         </article>`;
       }).join("") : "<p>Du hast noch keine Familien kontaktiert.</p>";
       contactedPagination.innerHTML = paginationMarkup(page.current, page.pages, "Seiten kontaktierter Familien");
+      hydrateTripPhotos(getSupabase(), contactedList);
     };
     const renderReceived = () => {
       const page = paginate(receivedContacts, receivedPage);
@@ -1378,7 +1425,7 @@ function mountPage() {
         userId = data.user.id;
         await refreshTrips();
         try {
-          contactedFamilies = await fetchPersonalReferences(getSupabase(), "my_contacted_family_details");
+          contactedFamilies = await fetchPersonalReferences(getSupabase(), "my_contacted_family_details_v2");
           if (!list.isConnected) return;
           contactedLoaded = true;
           renderContacted();
@@ -1435,6 +1482,10 @@ function mountPage() {
         form.elements.namedItem("id").value = trip?.id ?? "";
         form.elements.namedItem("destination").value = trip?.destination ?? "";
         form.elements.namedItem("accommodation").value = trip?.accommodation ?? "";
+        form.elements.namedItem("description").value = trip?.description ?? "";
+        form.querySelectorAll('input[name="tripInterest"]').forEach((input) => { input.checked = trip?.interests.includes(input.value) ?? false; });
+        form.elements.namedItem("customInterests").value = (trip?.interests ?? []).filter((interest) => !tripInterests.includes(interest)).join(", ");
+        form.querySelector("#trip-photo-remove-label").hidden = !trip?.photo_path;
         form.elements.namedItem("start").value = trip?.start ?? "";
         form.elements.namedItem("end").value = trip?.end ?? "";
         tripSearch.setTrip(trip);
@@ -1449,9 +1500,17 @@ function mountPage() {
       }
       if (action === "remove") {
         if (!window.confirm("Möchtest du diese Reise wirklich löschen? Zugehörige Kontaktanfragen werden ebenfalls gelöscht.")) return;
+        const trip = myTrips.find((item) => item.id === button.dataset.tripId);
         button.disabled = true;
         try {
           await removeOwnTrip(getSupabase(), userId, button.dataset.tripId);
+          if (trip?.photo_path) {
+            try { await removeTripPhoto(getSupabase(), trip.photo_path); }
+            catch (error) {
+              console.error("Reisebild konnte nicht gelöscht werden:", error);
+              window.alert("Die Reise wurde gelöscht, ihr Foto konnte jedoch nicht aus dem Speicher entfernt werden. Bitte wende dich an den Support.");
+            }
+          }
           await refreshTrips();
         } catch (error) {
           console.error("Reise konnte nicht entfernt werden:", error);
@@ -1512,7 +1571,7 @@ function mountPage() {
         visibilityTitle.textContent = visible ? "Reise für Familien freigeben?" : "Sichtbarkeit ausschalten?";
         visibilityDescription.innerHTML = visible
           ? `<p>Wenn du deine Reise freigibst, können andere Familien diese Angaben in der Suche sehen:</p>
-             <ul><li>Reiseziel und Reisezeitraum</li><li>Sprachen sowie Alter und Geschlecht der Kinder</li></ul>
+             <ul><li>Reiseziel und Reisezeitraum</li><li>Sprachen sowie Alter und Geschlecht der Kinder</li><li>Beschreibung, Interessen und eigenes Reisefoto, falls angegeben</li></ul>
              <p class="trip-visibility-privacy">${icon("shield-check")} Du kannst die Freigabe jederzeit wieder ausschalten.</p>`
           : `<p>Reiseziel und Zeitraum können derzeit öffentlich sein. Familienangaben sind nicht für die Suche freigegeben.</p>
              <p>Möchtest du die Sichtbarkeit dieser Reise ausschalten?</p>`;
@@ -1562,6 +1621,16 @@ function mountPage() {
       }
       const destination = formData.get("destination").toString().trim();
       const accommodation = formData.get("accommodation").toString().trim();
+      const interests = [...new Set([
+        ...formData.getAll("tripInterest").map(String),
+        ...formData.get("customInterests").toString().split(",").map((value) => value.trim()).filter(Boolean),
+      ])];
+      if (interests.length > 20 || interests.some((interest) => interest.length > 50 || /[\u0000-\u001f\u007f]/.test(interest))) {
+        message.textContent = "Bitte wähle höchstens 20 Interessen mit jeweils maximal 50 Zeichen.";
+        message.hidden = false;
+        form.elements.namedItem("customInterests").focus();
+        return;
+      }
       if (!destination) {
         message.textContent = "Bitte gib ein Reiseziel ein.";
         message.hidden = false;
@@ -1576,25 +1645,53 @@ function mountPage() {
         destination: resolved.label,
         destinationId: resolved.destinationId,
         accommodation,
+        description: formData.get("description").toString().trim(),
+        interests,
+        photo_path: existingTrip?.photo_path ?? null,
         start: formData.get("start").toString(),
         end: formData.get("end").toString(),
         children: children.map((child) => ({ ...child, age: Number(child.age) })),
         languages,
       };
 
-      if (existingTrip?.visible && !window.confirm("Diese Reise ist öffentlich. Die geänderten Angaben zu Reiseziel, Zeitraum, Sprachen und Kindern werden ebenfalls öffentlich sichtbar. Möchtest du sie speichern?")) return;
+      if (existingTrip?.visible && existingTrip.detailsShared && !window.confirm("Diese Reise ist öffentlich. Änderungen an Reiseziel, Zeitraum, Sprachen, Kinderangaben, Beschreibung, Interessen und Foto sind ebenfalls öffentlich sichtbar. Möchtest du sie speichern?")) return;
       const submit = form.querySelector('button[type="submit"]');
       submit.disabled = true;
       message.textContent = "Reise wird gespeichert …";
       message.hidden = false;
+      let uploadedPhoto = null;
+      let saved = false;
       try {
+        const file = form.elements.namedItem("photo").files[0];
+        if (file) {
+          uploadedPhoto = await uploadTripPhoto(getSupabase(), file);
+          updatedTrip.photo_path = uploadedPhoto;
+        } else if (formData.has("removePhoto")) {
+          updatedTrip.photo_path = null;
+        }
         await saveOwnTrip(getSupabase(), userId, updatedTrip);
+        saved = true;
+        if (existingTrip?.photo_path && existingTrip.photo_path !== updatedTrip.photo_path) {
+          try { await removeTripPhoto(getSupabase(), existingTrip.photo_path); }
+          catch (error) {
+            console.error("Vorheriges Reisebild konnte nicht entfernt werden:", error);
+            window.alert("Die Reise wurde gespeichert, das vorherige Foto konnte jedoch nicht aus dem Speicher entfernt werden. Bitte wende dich an den Support.");
+          }
+        }
         dialog.close();
         await refreshTrips();
       } catch (error) {
         console.error("Reise konnte nicht gespeichert oder geladen werden:", error);
+        if (uploadedPhoto && !saved) {
+          try { await removeTripPhoto(getSupabase(), uploadedPhoto); }
+          catch (cleanupError) {
+            console.error("Hochgeladenes Reisebild konnte nicht bereinigt werden:", cleanupError);
+            window.alert("Das hochgeladene Foto konnte nicht automatisch entfernt werden. Bitte prüfe die Reise und wende dich gegebenenfalls an den Support.");
+          }
+        }
         if (dialog.open) {
-          message.textContent = "Die Reise konnte nicht gespeichert werden. Bitte versuche es erneut.";
+          message.textContent = error instanceof Error && /JPEG|Bild/.test(error.message)
+            ? error.message : "Die Reise konnte nicht gespeichert werden. Bitte versuche es erneut.";
           message.hidden = false;
         } else if (list.isConnected) {
           showListError("Die Reise wurde gespeichert, aber die Übersicht konnte nicht aktualisiert werden. Bitte lade die Seite erneut.");
@@ -1749,8 +1846,15 @@ app.addEventListener("error", (event) => {
   if (!(image instanceof HTMLImageElement) || !image.hasAttribute("data-destination-photo")
     || image.dataset.fallbackApplied) return;
   image.dataset.fallbackApplied = "true";
-  image.src = destinationPlaceholder;
-  image.alt = "Neutrale Platzhaltergrafik";
+  const fallback = image.dataset.photoFallback;
+  delete image.dataset.photoFallback;
+  if (fallback && image.src !== new URL(fallback, document.baseURI).href) {
+    image.src = fallback;
+    delete image.dataset.fallbackApplied;
+  } else {
+    image.src = destinationPlaceholder;
+    image.alt = "Neutrale Platzhaltergrafik";
+  }
 }, true);
 window.addEventListener("popstate", mountPage);
 const isSignupCallback = new URLSearchParams(location.hash.slice(1)).get("type") === "signup";

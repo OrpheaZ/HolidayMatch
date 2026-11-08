@@ -38,7 +38,7 @@ test("Abfrage beschränkt Reisen explizit auf den Benutzer und unterstützt best
   const trips = await fetchOwnTrips(client, "user-1");
   assert.deepEqual(trips, [{
     id: "trip-1", destination: "Mallorca", country: "Spanien", region: "Alcúdia", start: "2027-07-12", end: "2027-07-22",
-    accommodation: "", legacyRegion: "", locationData: { destinationId: "destination-1", customDestination: null, customRegion: null },
+    accommodation: "", description: "", interests: [], photo_path: null, legacyRegion: "", locationData: { destinationId: "destination-1", customDestination: null, customRegion: null },
     children: [{ age: 5, gender: null }], languages: ["Deutsch"], visible: true, detailsShared: true,
   }]);
   assert.ok(client.calls.some((call) => call[0] === "eq" && call[1] === "trips" && call[2] === "user_id" && call[3] === "user-1"));
@@ -118,6 +118,20 @@ test("Bearbeitung erhält frühere Ortsangaben und speichert Unterkunft getrennt
   assert.equal(changed.custom_region, null);
   assert.equal(changed.legacy_region, "Alcúdia");
   assert.equal(changed.accommodation, null);
+});
+
+test("Beschreibung, Interessen und eigenes Foto werden reisebezogen gespeichert", async () => {
+  const client = mockClient({ trips: { data: { id: "trip-1" }, error: null } });
+  await saveOwnTrip(client, "user-1", {
+    id: "trip-1", destination: "Kreta", destinationId: null, accommodation: "",
+    start: "2027-07-12", end: "2027-07-22", children: [], languages: ["Deutsch"],
+    description: "Wir suchen Mitspieler.", interests: ["Strand", "Schnorcheln"],
+    photo_path: "123e4567-e89b-42d3-a456-426614174000.webp",
+  });
+  const saved = client.calls.find((call) => call[0] === "update")[2];
+  assert.equal(saved.description, "Wir suchen Mitspieler.");
+  assert.deepEqual(saved.interests, ["Strand", "Schnorcheln"]);
+  assert.equal(saved.photo_path, "123e4567-e89b-42d3-a456-426614174000.webp");
 });
 
 test("Sichtbarkeit wird atomar per RPC geändert; Fehler werden weitergegeben", async () => {

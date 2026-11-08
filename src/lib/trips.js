@@ -8,7 +8,7 @@ export async function fetchOwnTrips(client, userId) {
   const pageSize = 500;
   for (let offset = 0; ; offset += pageSize) {
     const tripResult = await client.from("trips").select(
-      "id,user_id,start_date,end_date,is_public,destination_id,custom_destination,custom_region,legacy_region,accommodation,trip_languages,trip_children_data,destinations(name,region,country),trip_children(children(birth_year,gender)),trip_search_consent(share_family_details)"
+      "id,user_id,start_date,end_date,is_public,destination_id,custom_destination,custom_region,legacy_region,accommodation,trip_languages,trip_children_data,description,interests,photo_path,destinations(name,region,country),trip_children(children(birth_year,gender)),trip_search_consent(share_family_details)"
     ).eq("user_id", userId).order("start_date", { ascending: true }).order("id").range(offset, offset + pageSize - 1);
     const page = unwrap(tripResult);
     trips.push(...page);
@@ -25,6 +25,9 @@ export async function fetchOwnTrips(client, userId) {
       ? trip.destinations?.country ?? "" : "",
     region: trip.custom_region ?? trip.destinations?.region ?? "",
     accommodation: trip.accommodation ?? "",
+    description: trip.description ?? "",
+    interests: trip.interests ?? [],
+    photo_path: trip.photo_path ?? null,
     legacyRegion: trip.legacy_region ?? "",
     locationData: {
       destinationId: trip.destination_id,
@@ -61,6 +64,9 @@ export async function saveOwnTrip(client, userId, trip) {
   const values = {
     ...location,
     accommodation: trip.accommodation || null,
+    description: trip.description || null,
+    interests: trip.interests ?? [],
+    photo_path: trip.photo_path ?? null,
     trip_languages: trip.languages,
     trip_children_data: trip.children.map(({ age, gender }) => ({ age, gender: gender || null })),
     start_date: trip.start,

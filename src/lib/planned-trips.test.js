@@ -13,7 +13,7 @@ test("Lädt höchstens vier laufende oder kommende freigegebene Reisen in stabil
   const client = { rpc(name) { calls.push(["rpc", name]); return query; } };
   assert.equal(await fetchPlannedTrips(client, "2026-11-08"), rows);
   assert.deepEqual(calls, [
-    ["rpc", "search_public_families"],
+    ["rpc", "search_public_families_details"],
     ["gte", "end_date", "2026-11-08"],
     ["order", "start_date", { ascending: true }],
     ["order", "trip_reference", { ascending: true }],

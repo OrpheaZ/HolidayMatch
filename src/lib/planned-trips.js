@@ -1,5 +1,5 @@
 export async function fetchPlannedTrips(client, today) {
-  const { data, error } = await client.rpc("search_public_families")
+  const { data, error } = await client.rpc("search_public_families_details")
     .gte("end_date", today)
     .order("start_date", { ascending: true })
     .order("trip_reference", { ascending: true })

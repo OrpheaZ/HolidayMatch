@@ -78,6 +78,13 @@ and sent-contact markers are private to the signed-in user and saved in Supabase
 the trips page lists sent contacts without exposing trips that are no longer
 public. Sent contacts show their contact date and the family's currently shared
 search details and destination thumbnail; withdrawn details are not shown.
+Trips may include a description, selected or custom interests and one optional photo.
+Photos are re-encoded in the browser and stored in the private `trip-images`
+bucket. Owners can access their photos; others can download them only while the
+trip and family details are shared. Public results include the description,
+interests and photo when consent is active. Without a photo, the destination
+image or a neutral placeholder is used. Sharing a photo requires the owner to
+have permission to share it.
 Received requests and their messages appear on the recipient's trips
 page; replies and notifications are not yet implemented. Password
 recovery remains a prototype. Test RLS and consent with separate accounts before
