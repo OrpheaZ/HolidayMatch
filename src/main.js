@@ -11,7 +11,8 @@ import { filterFamilies } from "./lib/family-search.js";
 import { register, login, ensureProfile, authErrorMessage } from "./lib/auth.js";
 import { fetchOwnTrips, saveOwnTrip, removeOwnTrip, setOwnTripVisibility } from "./lib/trips.js";
 import { fetchDestinationCatalog, destinationSuggestions, destinationPhoto, destinationPhotoMarkup, resolveDestination } from "./lib/destinations.js";
-import { requestFamilyContact, contactErrorMessage } from "./lib/contact.js";
+import { requestFamilyContact, contactErrorMessage, fetchPersonalReferences, setFamilyFavorite, fetchReceivedContacts } from "./lib/contact.js";
+import { paginate, paginationMarkup } from "./lib/pagination.js";
 
 const app = document.querySelector("#app");
 const navItems = [
@@ -21,7 +22,6 @@ const navItems = [
 ];
 
 const icon = (name) => `<i class="bi bi-${name}" aria-hidden="true"></i>`;
-const favoriteFamilyIds = new Set();
 let currentSession = null;
 let destinationCatalog = [];
 let catalogPromise;
@@ -414,7 +414,7 @@ function formatDate(date) {
     .format(new Date(`${date}T12:00:00`));
 }
 
-function familyCard(family) {
+function familyCard(family, favorites = new Set(), contacted = new Set(), personalReady = true) {
   const children = family.children.map((child) => `${child.age} Jahre${child.gender ? ` (${child.gender})` : ""}`).join(", ");
   const date = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric" });
   const startDate = new Date(`${family.start_date}T12:00:00`);
@@ -424,7 +424,8 @@ function familyCard(family) {
   const dateRange = sameMonth
     ? `${new Intl.DateTimeFormat("de-DE", { day: "numeric" }).format(startDate)}.–${date.format(endDate)}`
     : `${date.format(startDate)} – ${date.format(endDate)}`;
-  const isFavorite = favoriteFamilyIds.has(family.trip_reference);
+  const isFavorite = favorites.has(family.trip_reference);
+  const isContacted = contacted.has(family.trip_reference);
   const location = [family.region, family.destination, family.country].filter(Boolean).join(", ");
   return `
     <article class="family-result-card">
@@ -432,7 +433,7 @@ function familyCard(family) {
       <div class="family-result-content">
         <div class="family-result-heading">
           <div class="family-result-name">${icon("people-fill")}<h3>Familie</h3></div>
-          <button class="family-favorite${isFavorite ? " is-favorite" : ""}" type="button" data-favorite="${escapeHTML(family.trip_reference)}" aria-label="${isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}: Familie in ${escapeHTML(family.destination)}" aria-pressed="${isFavorite}">
+          <button class="family-favorite${isFavorite ? " is-favorite" : ""}" type="button" data-favorite="${escapeHTML(family.trip_reference)}" aria-label="${isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}: Familie in ${escapeHTML(family.destination)}" aria-pressed="${isFavorite}"${personalReady ? "" : " disabled"}>
             ${icon(isFavorite ? "heart-fill" : "heart")}
           </button>
         </div>
@@ -442,9 +443,9 @@ function familyCard(family) {
           <span>${icon("people-fill")}<span>${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</span></span>
           <span>${icon("globe2")}<span>${escapeHTML(family.languages.join(", ") || "Keine Sprachen angegeben")}</span></span>
         </div>
-        <button class="family-contact-button" type="button" data-contact="${escapeHTML(family.trip_reference)}">
+        ${isContacted ? '<p class="contacted-label" role="status">Kontaktiert</p>' : `<button class="family-contact-button" type="button" data-contact="${escapeHTML(family.trip_reference)}"${personalReady ? "" : " disabled"}>
           ${icon("chat-dots")} Kontakt anfragen
-        </button>
+        </button>`}
         <p data-contact-status role="status" hidden></p>
       </div>
     </article>`;
@@ -495,7 +496,9 @@ function searchPage() {
             </label>
           </div>
           <div class="family-results-list" id="family-results"></div>
+          <div id="family-pagination"></div>
           <p id="family-results-error" role="alert" hidden></p>
+          <p id="personal-results-error" role="alert" hidden></p>
           <div class="empty-state d-none" id="empty-results">
             <span>${icon("search")}</span>
             <h3>Keine Familien gefunden</h3>
@@ -503,6 +506,20 @@ function searchPage() {
           </div>
         </div>
       </section>
+      <dialog class="trip-dialog" id="contact-dialog" aria-labelledby="contact-title">
+        <form id="contact-form">
+          <div class="trip-dialog-heading"><h2 id="contact-title">Nachricht an die Familie</h2>
+            <button type="button" class="trip-dialog-close" data-contact-close aria-label="Dialog schließen">${icon("x-lg")}</button></div>
+          <label class="form-label" for="contact-message">Deine Nachricht</label>
+          <textarea class="form-control" id="contact-message" name="message" rows="5" maxlength="2000" required></textarea>
+          <fieldset class="mt-3"><legend class="fs-6">Gemeinsame Interessen (optional)</legend>
+            <div class="d-flex flex-wrap gap-2">${["Strand", "Schwimmen", "Ausflüge", "Natur", "Sport", "Spielen", "Kultur", "Essen"].map((interest, index) =>
+    `<input type="checkbox" class="btn-check" name="interest" value="${escapeHTML(interest)}" id="interest-${index}" autocomplete="off"><label class="btn btn-outline-primary btn-sm" for="interest-${index}">${escapeHTML(interest)}</label>`).join("")}</div>
+          </fieldset>
+          <p class="mt-3 mb-0" id="contact-form-status" role="status" hidden></p>
+          <div class="trip-dialog-actions"><button class="btn btn-outline-primary" type="button" data-contact-close>Abbrechen</button><button class="btn btn-primary" type="submit">Anfrage senden</button></div>
+        </form>
+      </dialog>
     </main>`;
 }
 
@@ -554,6 +571,17 @@ function myTripsPage() {
         <div id="my-trips-list" class="my-trips-list">
           <p role="status">Reisen werden geladen …</p>
         </div>
+        <div id="trips-pagination"></div>
+        <section class="contacted-families mt-4" aria-labelledby="contacted-title">
+          <h2 id="contacted-title">Kontaktierte Familien</h2>
+          <div id="contacted-list"><p role="status">Kontaktanfragen werden geladen …</p></div>
+          <div id="contacted-pagination"></div>
+        </section>
+        <section class="contacted-families mt-4" aria-labelledby="received-title">
+          <h2 id="received-title">Eingegangene Kontaktanfragen</h2>
+          <div id="received-list"><p role="status">Kontaktanfragen werden geladen …</p></div>
+          <div id="received-pagination"></div>
+        </section>
         <button class="my-trips-bottom-cta" type="button" data-trip-action="new">
           <span class="my-trips-bottom-icon">${icon("plus-lg")}</span>
           <span class="my-trips-bottom-copy">
@@ -1062,9 +1090,20 @@ function mountPage() {
 
   if (path === "/search") {
     const results = document.querySelector("#family-results");
+    const pagination = document.querySelector("#family-pagination");
     const count = document.querySelector("#results-count");
     const errorMessage = document.querySelector("#family-results-error");
+    const personalError = document.querySelector("#personal-results-error");
     const empty = document.querySelector("#empty-results");
+    const contactDialog = document.querySelector("#contact-dialog");
+    const contactForm = document.querySelector("#contact-form");
+    const contactStatus = document.querySelector("#contact-form-status");
+    let selectedFamily = null;
+    let pageNumber = 1;
+    let personalReady = false;
+    let signedIn = false;
+    let favorites = new Set();
+    let contacted = new Set();
     let loadedFamilies = null;
     const renderFamilies = () => {
       if (!loadedFamilies) return;
@@ -1072,10 +1111,37 @@ function mountPage() {
       if (document.querySelector("#sort-results").value === "soonest") {
         matches.sort((first, second) => first.start_date.localeCompare(second.start_date));
       }
-      results.innerHTML = matches.map(familyCard).join("");
+      const page = paginate(matches, pageNumber);
+      pageNumber = page.current;
+      results.innerHTML = page.items.map((family) => familyCard(family, favorites, contacted, personalReady)).join("");
+      pagination.innerHTML = paginationMarkup(page.current, page.pages, "Familienseiten");
       count.textContent = `${matches.length} ${matches.length === 1 ? "Familie" : "Familien"} passend zu eurer Suche`;
       empty.classList.toggle("d-none", matches.length > 0);
     };
+    (async () => {
+      try {
+        const { data, error } = await getSupabase().auth.getUser();
+        if (error && error.name !== "AuthSessionMissingError") throw error;
+        if (!results.isConnected) return;
+        signedIn = Boolean(data.user);
+        if (signedIn) {
+          const [favoriteRows, contactRows] = await Promise.all([
+            fetchPersonalReferences(getSupabase(), "my_family_favorites"),
+            fetchPersonalReferences(getSupabase(), "my_contacted_families"),
+          ]);
+          if (!results.isConnected) return;
+          favorites = new Set(favoriteRows.map((row) => row.trip_reference));
+          contacted = new Set(contactRows.map((row) => row.trip_reference));
+        }
+        personalReady = true;
+        renderFamilies();
+      } catch (error) {
+        console.error("Persönliche Markierungen konnten nicht geladen werden:", error);
+        if (!results.isConnected) return;
+        personalError.textContent = "Favoriten und Kontaktstatus konnten nicht geladen werden. Bitte lade die Seite erneut.";
+        personalError.hidden = false;
+      }
+    })();
     count.textContent = "Familien werden geladen …";
     loadPublicFamilies().then((families) => {
       if (!results.isConnected) return;
@@ -1092,7 +1158,7 @@ function mountPage() {
     loadDestinationCatalog().then(() => {
       if (results.isConnected) renderFamilies();
     }).catch((error) => console.error("Reisezielbilder konnten nicht geladen werden:", error));
-    searchFormElement.addEventListener("family-search-update", renderFamilies);
+    searchFormElement.addEventListener("family-search-update", () => { pageNumber = 1; renderFamilies(); });
     searchFormElement.addEventListener("reset", (event) => {
       event.preventDefault();
       navigate("/search");
@@ -1100,38 +1166,80 @@ function mountPage() {
     document.querySelector("#family-results").addEventListener("click", async (event) => {
       const contact = event.target.closest("[data-contact]");
       if (contact) {
-        const status = contact.parentElement.querySelector("[data-contact-status]");
-        contact.disabled = true;
-        status.hidden = false;
-        status.textContent = "Kontaktanfrage wird gespeichert …";
-        try {
-          const sent = await requestFamilyContact(getSupabase(), contact.dataset.contact);
-          if (!contact.isConnected) return;
-          if (!sent) {
-            navigate("/login");
-            return;
-          }
-          status.textContent = "Deine Kontaktanfrage wurde gespeichert.";
-        } catch (error) {
-          console.error("Kontaktanfrage fehlgeschlagen:", error);
-          if (contact.isConnected) status.textContent = contactErrorMessage(error);
-        } finally {
-          if (contact.isConnected) contact.disabled = false;
-        }
+        if (!signedIn) { navigate("/login"); return; }
+        selectedFamily = loadedFamilies.find((family) => family.trip_reference === contact.dataset.contact);
+        if (!selectedFamily) return;
+        contactForm.reset();
+        contactForm.elements.namedItem("message").value = `Hallo, ihr reist vom ${tripDateRange(selectedFamily.start_date, selectedFamily.end_date)} nach ${selectedFamily.destination}. Wir würden uns freuen, euch kennenzulernen. Habt ihr Lust, dass unsere Kinder dort gemeinsam spielen?`;
+        contactStatus.hidden = true;
+        contactDialog.showModal();
+        contactForm.elements.namedItem("message").focus();
         return;
       }
       const button = event.target.closest("[data-favorite]");
       if (!button) return;
+      if (!signedIn) { navigate("/login"); return; }
+      button.disabled = true;
       const familyId = button.dataset.favorite;
-      if (favoriteFamilyIds.has(familyId)) favoriteFamilyIds.delete(familyId);
-      else favoriteFamilyIds.add(familyId);
-      renderFamilies();
+      const favorite = !favorites.has(familyId);
+      try {
+        await setFamilyFavorite(getSupabase(), familyId, favorite);
+        if (!results.isConnected) return;
+        if (favorite) favorites.add(familyId); else favorites.delete(familyId);
+        renderFamilies();
+      } catch (error) {
+        console.error("Favorit konnte nicht gespeichert werden:", error);
+        personalError.textContent = "Der Favorit konnte nicht gespeichert werden. Bitte versuche es erneut.";
+        personalError.hidden = false;
+        if (button.isConnected) button.disabled = false;
+      }
     });
-    document.querySelector("#sort-results").addEventListener("change", renderFamilies);
+    contactDialog.addEventListener("click", (event) => {
+      if (event.target.closest("[data-contact-close]")) contactDialog.close();
+    });
+    contactForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!selectedFamily || !contactForm.reportValidity()) return;
+      const message = contactForm.elements.namedItem("message").value.trim();
+      if (!message) {
+        contactStatus.textContent = "Bitte gib eine Nachricht ein.";
+        contactStatus.hidden = false;
+        return;
+      }
+      const submit = contactForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      const tripReference = selectedFamily.trip_reference;
+      contactStatus.textContent = "Kontaktanfrage wird gespeichert …";
+      contactStatus.hidden = false;
+      try {
+        const sent = await requestFamilyContact(getSupabase(), tripReference, message,
+          new FormData(contactForm).getAll("interest").map(String));
+        if (!contactForm.isConnected) return;
+        if (!sent) { contactDialog.close(); navigate("/login"); return; }
+        contacted.add(tripReference);
+        if (contactDialog.open && selectedFamily?.trip_reference === tripReference) contactDialog.close();
+        renderFamilies();
+      } catch (error) {
+        console.error("Kontaktanfrage fehlgeschlagen:", error);
+        if (contactForm.isConnected) contactStatus.textContent = contactErrorMessage(error);
+      } finally {
+        if (contactForm.isConnected) submit.disabled = false;
+      }
+    });
+    pagination.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-page]");
+      if (button && !button.disabled) { pageNumber = Number(button.dataset.page); renderFamilies(); }
+    });
+    document.querySelector("#sort-results").addEventListener("change", () => { pageNumber = 1; renderFamilies(); });
   }
 
   if (path === "/trips") {
     const list = document.querySelector("#my-trips-list");
+    const tripsPagination = document.querySelector("#trips-pagination");
+    const contactedList = document.querySelector("#contacted-list");
+    const contactedPagination = document.querySelector("#contacted-pagination");
+    const receivedList = document.querySelector("#received-list");
+    const receivedPagination = document.querySelector("#received-pagination");
     const dialog = document.querySelector("#trip-dialog");
     const form = document.querySelector("#trip-form");
     const page = document.querySelector(".my-trips-page");
@@ -1141,18 +1249,59 @@ function mountPage() {
     const endInput = form.elements.namedItem("end");
     const tripSearch = setupLandingSearch(form, { fromQuery: false, trip: true });
     let myTrips = [];
+    let tripPage = 1;
+    let contactPage = 1;
+    let contactedFamilies = [];
+    let receivedContacts = [];
+    let receivedLoaded = false;
+    let receivedPage = 1;
     let destinations = [];
     let userId = null;
     createButtons.forEach((button) => { button.disabled = true; });
 
     const showListError = (text) => {
       list.innerHTML = `<p role="alert">${escapeHTML(text)}</p>`;
+      tripsPagination.innerHTML = "";
+    };
+    const renderTrips = () => {
+      const page = paginate(myTrips, tripPage);
+      tripPage = page.current;
+      list.innerHTML = renderMyTrips(page.items);
+      tripsPagination.innerHTML = paginationMarkup(page.current, page.pages, "Reiseseiten");
+    };
+    const renderContacted = () => {
+      const page = paginate(contactedFamilies, contactPage);
+      contactPage = page.current;
+      contactedList.innerHTML = page.items.length ? page.items.map((family) => `
+        <article class="contacted-family">
+          <div><strong>Familie${family.destination ? ` in ${escapeHTML(family.destination)}` : " – Reise nicht mehr öffentlich"}</strong>
+          ${family.start_date && family.end_date ? `<p>${escapeHTML(tripDateRange(family.start_date, family.end_date))}</p>` : ""}</div>
+          <span class="contacted-label">Kontaktiert</span>
+        </article>`).join("") : "<p>Du hast noch keine Familien kontaktiert.</p>";
+      contactedPagination.innerHTML = paginationMarkup(page.current, page.pages, "Seiten kontaktierter Familien");
+    };
+    const renderReceived = () => {
+      const page = paginate(receivedContacts, receivedPage);
+      receivedPage = page.current;
+      receivedList.innerHTML = page.items.length ? page.items.map((request) => {
+        const trip = myTrips.find((item) => item.id === request.trip_id);
+        return `<article class="received-contact">
+          <strong>Anfrage für ${escapeHTML(trip?.destination ?? "deine Reise")}</strong>
+          <p>${escapeHTML(request.message ?? "Diese frühere Anfrage enthält keine Nachricht.")}</p>
+          ${request.interests.length ? `<p>Interessen: ${escapeHTML(request.interests.join(", "))}</p>` : ""}
+        </article>`;
+      }).join("") : "<p>Du hast noch keine Kontaktanfragen erhalten.</p>";
+      receivedPagination.innerHTML = paginationMarkup(page.current, page.pages, "Seiten eingegangener Kontaktanfragen");
     };
     async function refreshTrips() {
       const trips = await fetchOwnTrips(getSupabase(), userId);
       if (!list.isConnected) return;
       myTrips = trips;
-      list.innerHTML = renderMyTrips(myTrips);
+      renderTrips();
+      if (receivedLoaded) {
+        receivedContacts = receivedContacts.filter((request) => myTrips.some((trip) => trip.id === request.trip_id));
+        renderReceived();
+      }
     }
     (async () => {
       try {
@@ -1161,15 +1310,36 @@ function mountPage() {
         if (!list.isConnected) return;
         if (!data.user) {
           list.innerHTML = '<div class="my-trips-empty"><h2>Bitte melde dich an</h2><p>Deine Reisen sind nur für dich sichtbar.</p><a class="btn btn-primary" href="/login">Anmelden</a></div>';
+          contactedList.closest("section").hidden = true;
+          receivedList.closest("section").hidden = true;
           return;
         }
         userId = data.user.id;
         await refreshTrips();
         try {
+          contactedFamilies = await fetchPersonalReferences(getSupabase(), "my_contacted_families");
+          if (!list.isConnected) return;
+          renderContacted();
+        } catch (error) {
+          console.error("Kontaktierte Familien konnten nicht geladen werden:", error);
+          if (!list.isConnected) return;
+          contactedList.innerHTML = '<p role="alert">Kontaktierte Familien konnten nicht geladen werden. Bitte lade die Seite erneut.</p>';
+        }
+        try {
+          receivedContacts = await fetchReceivedContacts(getSupabase(), userId);
+          if (!list.isConnected) return;
+          receivedLoaded = true;
+          renderReceived();
+        } catch (error) {
+          console.error("Eingegangene Kontaktanfragen konnten nicht geladen werden:", error);
+          if (!list.isConnected) return;
+          receivedList.innerHTML = '<p role="alert">Eingegangene Kontaktanfragen konnten nicht geladen werden. Bitte lade die Seite erneut.</p>';
+        }
+        try {
           destinations = destinationSuggestions(await loadDestinationCatalog());
           if (!list.isConnected) return;
           tripSearch.setTripDestinations(destinations);
-          list.innerHTML = renderMyTrips(myTrips);
+          renderTrips();
         } catch (error) {
           console.error("Reisezielvorschläge konnten nicht geladen werden:", error);
           if (!list.isConnected) return;
@@ -1219,6 +1389,7 @@ function mountPage() {
         return;
       }
       if (action === "remove") {
+        if (!window.confirm("Möchtest du diese Reise wirklich löschen? Zugehörige Kontaktanfragen werden ebenfalls gelöscht.")) return;
         button.disabled = true;
         try {
           await removeOwnTrip(getSupabase(), userId, button.dataset.tripId);
@@ -1231,6 +1402,19 @@ function mountPage() {
           }
         }
       }
+    });
+
+    tripsPagination.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-page]");
+      if (button && !button.disabled) { tripPage = Number(button.dataset.page); renderTrips(); }
+    });
+    contactedPagination.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-page]");
+      if (button && !button.disabled) { contactPage = Number(button.dataset.page); renderContacted(); }
+    });
+    receivedPagination.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-page]");
+      if (button && !button.disabled) { receivedPage = Number(button.dataset.page); renderReceived(); }
     });
 
     list.addEventListener("change", async (event) => {
@@ -1247,7 +1431,7 @@ function mountPage() {
         await setOwnTripVisibility(getSupabase(), trip.id, input.checked);
         trip.visible = input.checked;
         trip.detailsShared = input.checked;
-        list.innerHTML = renderMyTrips(myTrips);
+        renderTrips();
       } catch (error) {
         console.error("Sichtbarkeit konnte nicht gespeichert werden:", error);
         input.checked = trip.visible;
@@ -1440,7 +1624,7 @@ document.addEventListener("click", (event) => {
       if (error) throw error;
       currentSession = null;
       updateAuthNavigation();
-      if (location.pathname === "/login" || location.pathname === "/register") mountPage();
+      if (["/login", "/register", "/search", "/trips"].includes(location.pathname)) mountPage();
     }).catch((error) => {
       console.error("Abmeldung fehlgeschlagen:", error);
       const message = document.querySelector("#auth-navigation-error");

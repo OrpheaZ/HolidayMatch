@@ -10,7 +10,8 @@ function mockClient(results) {
       const query = {
         select(value) { calls.push(["select", table, value]); return query; },
         eq(column, value) { calls.push(["eq", table, column, value]); return query; },
-        order(column, options) { calls.push(["order", table, column, options]); return Promise.resolve(results[table]); },
+        order(column, options) { calls.push(["order", table, column, options]); return query; },
+        range(start, end) { calls.push(["range", table, start, end]); return Promise.resolve(results[table]); },
         maybeSingle() { return Promise.resolve(results[table]); },
         single() { return Promise.resolve(results[table]); },
         insert(value) { calls.push(["insert", table, value]); return query; },
@@ -41,6 +42,28 @@ test("Abfrage beschränkt Reisen explizit auf den Benutzer und unterstützt best
     children: [{ age: 5, gender: null }], languages: ["Deutsch"], visible: true, detailsShared: true,
   }]);
   assert.ok(client.calls.some((call) => call[0] === "eq" && call[1] === "trips" && call[2] === "user_id" && call[3] === "user-1"));
+});
+
+test("Eigene Reisen werden über die API-Grenze hinaus vollständig und stabil geladen", async () => {
+  const calls = [];
+  const row = {
+    id: "trip", start_date: "2027-07-12", end_date: "2027-07-22", is_public: false,
+    destination_id: null, custom_destination: "Kreta", custom_region: null,
+    destinations: null, trip_children: [], trip_search_consent: null,
+  };
+  const client = {
+    from(table) {
+      const query = {
+        select() { return this; }, eq() { return this; },
+        order(column) { calls.push(column); return this; },
+        async range(start) { return { data: start === 0 ? Array(500).fill(row) : [row], error: null }; },
+        async maybeSingle() { return { data: null, error: null }; },
+      };
+      return query;
+    },
+  };
+  assert.equal((await fetchOwnTrips(client, "user")).length, 501);
+  assert.deepEqual(calls, ["start_date", "id", "start_date", "id"]);
 });
 
 test("Neue Reisen werden privat erstellt; Aktualisieren und Löschen sind auf Eigentümer beschränkt", async () => {

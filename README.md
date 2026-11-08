@@ -69,8 +69,11 @@ ages entered in the trip form are stored on the trip;
 the ages are not linked to the separate child profiles. Previously entered
 prototype trips were only in memory and cannot be recovered after a reload.
 The search excludes the signed-in user's own trips, while anonymous visitors can
-see all eligible trips. Signed-in users can save one contact request per trip;
-the recipient-facing inbox and notifications are not yet implemented. Password
+see all eligible trips. Signed-in users can save one contact request per trip with a message and optional interests. Favorites
+and sent-contact markers are private to the signed-in user and saved in Supabase;
+the trips page lists sent contacts without exposing trips that are no longer
+public. Received requests and their messages appear on the recipient's trips
+page; replies and notifications are not yet implemented. Password
 recovery remains a prototype. Test RLS and consent with separate accounts before
 using real family data.
 

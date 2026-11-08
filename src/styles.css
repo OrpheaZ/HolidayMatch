@@ -95,6 +95,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .planned-trip-card:hover { transform: translateY(-3px); box-shadow: 0 13px 30px rgba(44, 75, 65, .12); }
 .planned-trip-image { display: block; width: 100%; aspect-ratio: 1.55; object-fit: cover; }
 .destination-photo { position: relative; min-width: 0; margin: 0; }
+.contacted-families { padding: 22px; border-radius: 16px; background: #fff; }
+.contacted-families h2 { font-size: 1.2rem; }
+.contacted-family { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #e3ebe5; }
+.contacted-family p { margin: 4px 0 0; color: #74827e; }
+.received-contact { padding: 12px 0; border-top: 1px solid #e3ebe5; }
+.received-contact p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.contacted-label { display: inline-block; margin: 8px 0; color: #12675e; font-weight: 700; font-size: .85rem; }
 .planned-trip-content { padding: 13px 13px 14px; }
 .planned-trip-content h3 { margin: 0 0 9px; color: var(--ink); font-size: .98rem; font-weight: 800; letter-spacing: -.025em; }
 .planned-trip-date { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: #73827e; font-size: .72rem; line-height: 1.4; }
