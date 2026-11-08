@@ -31,6 +31,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .auth-nav { align-items: center; margin-left: auto; }
 .btn-primary { --bs-btn-bg: var(--teal); --bs-btn-border-color: var(--teal); --bs-btn-hover-bg: var(--teal-dark); --bs-btn-hover-border-color: var(--teal-dark); --bs-btn-active-bg: var(--teal-dark); --bs-btn-active-border-color: var(--teal-dark); --bs-btn-focus-shadow-rgb: 22, 127, 120; border-radius: 12px; font-weight: 700; }
 .nav-cta { padding: .72rem 1.05rem; font-size: .9rem; }
+.site-language { margin-left: auto; margin-right: .75rem; }
+.site-language select { width: auto; color: var(--teal-dark); border-color: #d7e9e3; font-weight: 600; }
+@media (min-width: 992px) {
+  .site-language { order: 2; margin-left: 1rem; margin-right: 0; }
+}
 
 .hero-section { overflow: hidden; padding: 62px 0 70px; background: radial-gradient(ellipse at 92% 18%, rgba(205, 244, 235, .72), transparent 29%), radial-gradient(ellipse at 4% 92%, rgba(225, 247, 241, .56), transparent 25%), linear-gradient(180deg, #fbfefd 0%, #fff 100%); }
 .hero-container { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 2rem 5%; }
@@ -38,7 +43,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .eyebrow { display: inline-flex; align-items: center; gap: .55rem; color: var(--teal); font-size: .78rem; font-weight: 800; letter-spacing: .075em; text-transform: uppercase; }
 .eyebrow-dot { width: 8px; height: 8px; border-radius: 99px; background: #f19b6b; }
 .hero-copy h1 { margin: 20px 0 18px; color: var(--ink); font-size: clamp(3.2rem, 5.2vw, 4.65rem); font-weight: 400; letter-spacing: -.072em; line-height: 1.02; }
-.hero-copy h1 span, .section-heading h2 span, .results-intro h1 span { color: var(--teal); }
+.hero-copy h1 .hero-title-highlight, .section-heading h2 span, .results-intro h1 span { color: var(--teal); }
 .hero-description { max-width: 500px; margin: 0; color: #667875; font-size: 1.02rem; line-height: 1.7; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 27px; }
 .hero-actions .btn { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 9px; padding: .72rem 1.15rem; }
@@ -646,7 +651,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .hero-copy .eyebrow { color: #173a58; font-size: .77rem; letter-spacing: .045em; }
 .hero-copy .eyebrow-dot { width: 8px; height: 8px; background: #f5a129; }
 .hero-copy h1 { margin: 12px 0 12px; color: #112e4f; font-size: clamp(3.15rem, 4.5vw, 4.05rem); font-weight: 850; letter-spacing: -.075em; line-height: .99; }
-.hero-copy h1 span { color: #08a99c; }
+.hero-copy h1 .hero-title-highlight { color: #08a99c; }
 .hero-description { max-width: 480px; margin: 0; color: #183754; font-size: 1.02rem; line-height: 1.55; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 18px; }
 .hero-actions .btn { min-height: 43px; padding: .64rem 1.05rem; border-radius: 999px; font-size: .83rem; }
@@ -880,6 +885,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .page-hero-copy .eyebrow-dot { background: #f5a129; }
 .page-hero-copy h1 { margin: 12px 0; color: #112e4f; font-size: clamp(2.4rem, 3.6vw, 3.4rem); font-weight: 850; letter-spacing: -.075em; line-height: .99; }
 .page-hero-copy h1 span { color: #08a99c; }
+.page-hero-copy h1 .page-hero-heading { color: inherit; }
 .page-hero-copy p { max-width: 480px; margin: 0; color: #183754; font-size: 1.02rem; line-height: 1.55; }
 .family-search-layout, .my-trips-content { padding-top: 24px; }
 @media (max-width: 991.98px) and (min-width: 768px) {

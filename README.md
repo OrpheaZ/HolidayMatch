@@ -43,6 +43,16 @@ and audited.
 
 ### Frontend integration
 
+The language selector supports German, English and Bulgarian, but translations
+remain incomplete: some trip and search messages, validation texts, image
+descriptions and destinations still use German. Navigation, footer, parts of
+the landing and search pages, trip and authentication forms, predefined
+interests, pagination, date ranges, calendar labels and filter summaries have
+translations. Custom interests and other user-generated
+text remain unchanged. The translation catalog is in `src/lib/i18n.js`; it does
+not change stored trip data. The selection is stored in browser local storage
+where available.
+
 The family search uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
 and calls `search_public_families_newest()`; never expose a service-role key through a
 `VITE_` variable. The RPC only returns public trips with explicit per-trip

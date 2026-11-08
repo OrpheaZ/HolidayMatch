@@ -9,24 +9,33 @@ import landingMobileHero from "./assets/holidaybuddies_opener_mb.png";
 import destinationPlaceholder from "./assets/destination-placeholder.svg";
 import { getSupabase, setAuthPersistence } from "./lib/supabase.js";
 import { filterFamilies } from "./lib/family-search.js";
-import { register, login, ensureProfile, authErrorMessage } from "./lib/auth.js";
+import { register, login, ensureProfile } from "./lib/auth.js";
 import { fetchOwnTrips, saveOwnTrip, removeOwnTrip, setOwnTripVisibility } from "./lib/trips.js";
 import { fetchDestinationCatalog, destinationSuggestions, destinationPhoto, destinationPhotoMarkup, resolveDestination } from "./lib/destinations.js";
-import { requestFamilyContact, contactErrorMessage, fetchPersonalReferences, setFamilyFavorite, fetchReceivedContacts } from "./lib/contact.js";
+import { requestFamilyContact, fetchPersonalReferences, setFamilyFavorite, fetchReceivedContacts } from "./lib/contact.js";
 import { paginate, paginationMarkup } from "./lib/pagination.js";
 import { fetchPlannedTrips, localDateString } from "./lib/planned-trips.js";
 import { uploadTripPhoto, removeTripPhoto, hydrateTripPhotos, releaseTripPhotos } from "./lib/trip-photos.js";
+import { choiceKey, formatTripDateRange, initialLanguage, languageStorageKey, localeForLanguage, supportedLanguage, translate, translateChoice, translateElements } from "./lib/i18n.js";
 
 const app = document.querySelector("#app");
+let storedLanguage;
+try {
+  storedLanguage = localStorage.getItem(languageStorageKey);
+} catch (error) {
+  console.warn("Die gespeicherte Sprache konnte nicht gelesen werden:", error);
+}
+let language = initialLanguage(storedLanguage, navigator.languages?.length ? navigator.languages : [navigator.language]);
 const navItems = [
-  { href: "/", label: "Startseite" },
-  { href: "/search", label: "Familien finden" },
-  { href: "/trips", label: "Meine Reisen" },
+  { href: "/", label: "Startseite", key: "home" },
+  { href: "/search", label: "Familien finden", key: "search" },
+  { href: "/trips", label: "Meine Reisen", key: "trips" },
 ];
 
 const icon = (name) => `<i class="bi bi-${name}" aria-hidden="true"></i>`;
 let currentSession = null;
 let cleanupPage = () => {};
+let updatePageLanguage = () => {};
 let destinationCatalog = [];
 let catalogPromise;
 function loadDestinationCatalog() {
@@ -55,26 +64,34 @@ function tripDetailsMarkup(trip) {
   const description = trip.description?.trim();
   const interests = trip.interests ?? [];
   return `<details class="trip-extra-details">
-    <summary>Mehr über diese Reise</summary>
-    ${description ? `<p>${escapeHTML(description)}</p>` : "<p>Keine Beschreibung angegeben.</p>"}
-    ${interests.length ? `<p><strong>Interessen:</strong> ${escapeHTML(interests.join(", "))}</p>` : ""}
+    <summary>${translate(language, "tripDetails")}</summary>
+    ${description ? `<p>${escapeHTML(description)}</p>` : `<p>${translate(language, "noDescription")}</p>`}
+    ${interests.length ? `<p><strong>${translate(language, "interests")}</strong> ${escapeHTML(interests.map((value) => translateChoice(language, value)).join(", "))}</p>` : ""}
   </details>`;
 }
 function header() {
-  const links = navItems.map(({ href, label }) =>
-    `<a class="nav-link${location.pathname === href ? " active" : ""}" href="${href}">${label}</a>`
+  const links = navItems.map(({ href, label, key }) =>
+    `<a class="nav-link${location.pathname === href ? " active" : ""}" href="${href}" data-i18n="${key}">${label}</a>`
   ).join("");
 
   return `
-    <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
+    <a class="skip-link" href="#main-content" data-i18n="skip">Zum Inhalt springen</a>
     <header class="site-header">
-      <nav class="navbar navbar-expand-lg" aria-label="Hauptnavigation">
+      <nav class="navbar navbar-expand-lg" aria-label="Hauptnavigation" data-i18n-aria-label="navigation">
         <div class="container">
-          <a class="navbar-brand brand-mark" href="/" aria-label="Holiday Buddies Startseite">
+          <a class="navbar-brand brand-mark" href="/" aria-label="Holiday Buddies Startseite" data-i18n-aria-label="homeLabel">
             <span class="brand-icon">${icon("sun-fill")}</span>
             <span>holiday<span class="brand-light">buddies</span></span>
           </a>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-navigation" aria-controls="main-navigation" aria-expanded="false" aria-label="Menü öffnen">
+          <label class="site-language">
+            <span class="visually-hidden" data-i18n="language">Sprache der Navigation (weitere Inhalte derzeit auf Deutsch)</span>
+            <select class="form-select form-select-sm" id="site-language" data-i18n-title="language">
+              <option value="de"${language === "de" ? " selected" : ""}>DE</option>
+              <option value="en"${language === "en" ? " selected" : ""}>EN</option>
+              <option value="bg"${language === "bg" ? " selected" : ""}>BG</option>
+            </select>
+          </label>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-navigation" aria-controls="main-navigation" aria-expanded="false" aria-label="Menü öffnen" data-i18n-aria-label="menu">
             <span class="navbar-toggler-icon"></span>
           </button>
           <div class="collapse navbar-collapse" id="main-navigation">
@@ -100,24 +117,24 @@ function footer() {
           <span class="brand-icon">${icon("sun-fill")}</span>
           <span>holiday<span class="brand-light">buddies</span></span>
         </a>
-        <p>Gemeinsam wird Urlaub noch schöner. <span aria-hidden="true">☀️</span></p>
-        <span class="footer-note">Ein erster Prototyp für Familien</span>
+        <p><span data-i18n="footer">Gemeinsam wird Urlaub noch schöner.</span> <span aria-hidden="true">☀️</span></p>
+        <span class="footer-note" data-i18n="prototype">Ein erster Prototyp für Familien</span>
       </div>
     </footer>`;
 }
 
 function childEntry(index, trip = false) {
-  const age = `<input name="childAge" type="number" min="0" max="18" step="1" inputmode="numeric" placeholder="${trip ? "z. B. 6" : "Alter"}" aria-label="Alter von Kind ${index}">`;
-  const gender = `<select class="form-select form-select-sm child-gender" name="childGender" aria-label="Geschlecht von Kind ${index} (optional)">
-      <option value="">Optional</option>
-      <option value="Junge">Junge</option>
-      <option value="Mädchen">Mädchen</option>
+  const age = `<input name="childAge" type="number" min="0" max="18" step="1" inputmode="numeric" placeholder="${translate(language, trip ? "ageExample" : "age")}" data-i18n-placeholder="${trip ? "ageExample" : "age"}" aria-label="${translate(language, "childAgeLabel", { number: index })}">`;
+  const gender = `<select class="form-select form-select-sm child-gender" name="childGender" aria-label="${translate(language, "childGenderLabel", { number: index })}">
+      <option value="" data-i18n="optional">${translate(language, "optional")}</option>
+      <option value="Junge" data-i18n="genderBoy">${translate(language, "genderBoy")}</option>
+      <option value="Mädchen" data-i18n="genderGirl">${translate(language, "genderGirl")}</option>
     </select>`;
   return `<div class="child-age-entry">
-    <span class="child-entry-label">Kind ${index}</span>
-    ${trip ? `<label class="child-entry-field"><span>Alter in Jahren</span>${age}</label>
-    <label class="child-entry-field"><span>Geschlecht <span class="child-field-optional">(optional)</span></span>${gender}</label>` : `${age}${gender}`}
-    <button type="button" data-action="remove-child-age" aria-label="Kind ${index} entfernen">${icon("x-lg")}</button>
+    <span class="child-entry-label">${translate(language, "childLabel", { number: index })}</span>
+    ${trip ? `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
+    <label class="child-entry-field"><span><span data-i18n="gender">${translate(language, "gender")}</span> <span class="child-field-optional" data-i18n="optionalSuffix">${translate(language, "optionalSuffix")}</span></span>${gender}</label>` : `${age}${gender}`}
+    <button type="button" data-action="remove-child-age" aria-label="${translate(language, "removeChildLabel", { number: index })}">${icon("x-lg")}</button>
   </div>`;
 }
 
@@ -126,16 +143,16 @@ function searchForm({ reset = false, trip = false } = {}) {
   return `
     ${trip ? '<div class="trip-search trip-form-fields">' : '<form class="trip-search" id="trip-search-form">'}
       <div class="search-field destination-field">
-        <label for="destination">${icon("geo-alt")} ${trip ? "Reiseziel" : "Reiseziel oder Hotel"}</label>
+        <label for="destination">${icon("geo-alt")} <span data-i18n="${trip ? "destination" : "destinationOrHotel"}">${trip ? "Reiseziel" : "Reiseziel oder Hotel"}</span></label>
         <div class="landing-destination-control">
-          <input id="destination" name="destination" type="search" placeholder="${trip ? "z. B. Kreta, Griechenland" : "Ziel oder Hotel eingeben"}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions"${trip ? ' maxlength="150" required' : ""}>
-          <button type="button" class="landing-map-toggle" data-action="map" aria-label="Reiseziele auf einer Karte auswählen" aria-expanded="false" aria-controls="destination-map">${icon("map")}</button>
+          <input id="destination" name="destination" type="search" placeholder="${trip ? "z. B. Kreta, Griechenland" : "Ziel oder Hotel eingeben"}" data-i18n-placeholder="${trip ? "destinationExample" : "destinationPlaceholder"}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destination-suggestions"${trip ? ' maxlength="150" required' : ""}>
+          <button type="button" class="landing-map-toggle" data-action="map" aria-label="Reiseziele auf einer Karte auswählen" data-i18n-aria-label="mapSelect" aria-expanded="false" aria-controls="destination-map">${icon("map")}</button>
         </div>
-        <div class="landing-suggestions landing-popover" id="destination-suggestions" role="listbox" aria-label="${trip ? "Vorschläge für Reiseziel" : "Vorschläge für Reiseziel oder Hotel"}" hidden></div>
+        <div class="landing-suggestions landing-popover" id="destination-suggestions" role="listbox" aria-label="${trip ? "Vorschläge für Reiseziel" : "Vorschläge für Reiseziel oder Hotel"}" data-i18n-aria-label="${trip ? "destinationSuggestions" : "destinationHotelSuggestions"}" hidden></div>
         <div class="landing-map landing-popover" id="destination-map" hidden>
-          <strong>Reiseziel auf der Karte wählen</strong>
-          <p>Schematische Übersicht der verfügbaren Beispielziele</p>
-          <div class="landing-map-graphic" aria-label="Schematische Karte des Mittelmeerraums">
+          <strong data-i18n="mapChoose">Reiseziel auf der Karte wählen</strong>
+          <p data-i18n="mapDescription">Schematische Übersicht der verfügbaren Beispielziele</p>
+          <div class="landing-map-graphic" aria-label="Schematische Karte des Mittelmeerraums" data-i18n-aria-label="mapLabel">
             <svg viewBox="0 0 360 170" preserveAspectRatio="none" aria-hidden="true">
               <rect width="360" height="170" fill="#d9f3f1"/>
               <path d="M0 0h360v52l-40 8-29-8-30 20-31-8-27 21-16-8-12-24-20-10-25 10-22-9-33 10-30-13L0 49zM0 130l48-10 37 10 33-4 38 14 46-5 44 14 43-9 71 8v22H0zM105 99l29-5 10 8-20 8-20-3zM214 111l36-5 9 8-31 6-16-3z" fill="#eaf3e4" stroke="#bfded4" stroke-width="2"/>
@@ -144,47 +161,47 @@ function searchForm({ reset = false, trip = false } = {}) {
             <button type="button" data-map-destination="Gardasee" class="landing-map-pin pin-garda">Gardasee</button>
             <button type="button" data-map-destination="Kreta" class="landing-map-pin pin-kreta">Kreta</button>
           </div>
-          <p>Wähle einen Ort aus, um ihn in die Suche zu übernehmen.</p>
+          <p data-i18n="mapHint">Wähle einen Ort aus, um ihn in die Suche zu übernehmen.</p>
         </div>
       </div>
       ${trip ? `<div class="search-field trip-region-field">
-        <label for="trip-accommodation">${icon("building")} Hotel / Unterkunft <span>(optional)</span></label>
-        <input id="trip-accommodation" name="accommodation" type="text" placeholder="Name der Unterkunft" maxlength="150">
+        <label for="trip-accommodation">${icon("building")} <span data-i18n="accommodation">Hotel / Unterkunft (optional)</span></label>
+        <input id="trip-accommodation" name="accommodation" type="text" placeholder="Name der Unterkunft" data-i18n-placeholder="accommodationName" maxlength="150">
       </div>` : ""}
       <div class="search-field date-field">
-        <span class="search-field-label" id="landing-date-label">${icon("calendar3")} Reisezeitraum</span>
+        <span class="search-field-label" id="landing-date-label">${icon("calendar3")} <span data-i18n="travelDates">Reisezeitraum</span></span>
         <details class="landing-picker date-picker">
           <summary aria-labelledby="landing-date-label landing-date-summary"><span id="landing-date-summary" data-date-summary>Zeitraum auswählen</span>${icon("calendar3")}</summary>
           <div class="landing-popover landing-date-options">
-            <p>Wähle Anreise und Abreise im Kalender oder gib sie einzeln ein.</p>
+            <p data-i18n="dateHint">Wähle Anreise und Abreise im Kalender oder gib sie einzeln ein.</p>
             <div class="landing-calendar">
               <div class="landing-calendar-heading">
-                <button type="button" data-calendar-month="-1" aria-label="Vorheriger Monat">${icon("chevron-left")}</button>
+                <button type="button" data-calendar-month="-1" aria-label="Vorheriger Monat" data-i18n-aria-label="previousMonth">${icon("chevron-left")}</button>
                 <strong data-calendar-month-label aria-live="polite"></strong>
-                <button type="button" data-calendar-month="1" aria-label="Nächster Monat">${icon("chevron-right")}</button>
+                <button type="button" data-calendar-month="1" aria-label="Nächster Monat" data-i18n-aria-label="nextMonth">${icon("chevron-right")}</button>
               </div>
               <div class="landing-calendar-weekdays" aria-hidden="true"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
-              <div class="landing-calendar-days" aria-label="Kalendertage"></div>
+              <div class="landing-calendar-days" aria-label="Kalendertage" data-i18n-aria-label="calendarDays"></div>
             </div>
-            <label for="start-date">Anreise</label>
+            <label for="start-date" data-i18n="arrival">Anreise</label>
             <input id="start-date" name="start" type="date"${trip ? " required" : ""}>
-            <label for="end-date">Abreise</label>
+            <label for="end-date" data-i18n="departure">Abreise</label>
             <input id="end-date" name="end" type="date"${trip ? " required" : ""}>
             <p class="landing-date-error" id="landing-date-error" role="alert" hidden></p>
-            <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
+            <button type="button" class="landing-picker-done" data-action="close-picker" data-i18n="apply">Übernehmen</button>
           </div>
         </details>
       </div>
       <div class="search-field">
-        <span class="search-field-label" id="landing-child-label">${icon("people")} Alter der Kinder</span>
+        <span class="search-field-label" id="landing-child-label">${icon("people")} <span data-i18n="childAges">Alter der Kinder</span></span>
         <details class="landing-picker child-picker">
           <summary aria-labelledby="landing-child-label landing-child-summary"><span id="landing-child-summary" data-child-summary>Alle Altersgruppen</span>${icon("chevron-down")}</summary>
           <div class="landing-popover landing-child-options">
-            <p>${trip ? "Gib das Alter direkt ein und wähle bei Bedarf das Geschlecht aus." : "Gib das Alter deiner Kinder an. Junge oder Mädchen ist optional."}</p>
+            <p data-i18n="${trip ? "childHintTrip" : "childHintSearch"}">${trip ? "Gib das Alter direkt ein und wähle bei Bedarf das Geschlecht aus." : "Gib das Alter deiner Kinder an. Junge oder Mädchen ist optional."}</p>
             ${["3-5", "6-8", "9-12"].includes(legacyAge) ? `
-              <label for="legacy-age">Bisheriger Altersbereich</label>
+              <label for="legacy-age" data-i18n="previousAge">Bisheriger Altersbereich</label>
               <select id="legacy-age" name="age">
-                <option value="">Kein Altersbereich</option>
+                <option value="" data-i18n="noAgeRange">Kein Altersbereich</option>
                 <option value="3-5">3–5 Jahre</option>
                 <option value="6-8">6–8 Jahre</option>
                 <option value="9-12">9–12 Jahre</option>
@@ -193,28 +210,28 @@ function searchForm({ reset = false, trip = false } = {}) {
             <div class="child-age-list" id="child-age-list">
               ${childEntry(1, trip)}
             </div>
-            <button class="add-child-age" type="button" data-action="add-child-age">${icon("plus-circle")} Kind hinzufügen</button>
-            <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
+            <button class="add-child-age" type="button" data-action="add-child-age">${icon("plus-circle")} <span data-i18n="addChild">Kind hinzufügen</span></button>
+            <button type="button" class="landing-picker-done" data-action="close-picker" data-i18n="apply">Übernehmen</button>
           </div>
         </details>
       </div>
       <div class="search-field">
-        <span class="search-field-label" id="landing-language-label">${icon("globe2")} Sprache</span>
+        <span class="search-field-label" id="landing-language-label">${icon("globe2")} <span data-i18n="spokenLanguage">Sprache</span></span>
         <details class="landing-picker language-picker">
           <summary aria-labelledby="landing-language-label landing-language-summary"><span id="landing-language-summary" data-language-summary>Alle Sprachen</span>${icon("chevron-down")}</summary>
           <div class="landing-popover language-options">
-            <p>Wähle eine oder mehrere Sprachen.</p>
-            ${["Deutsch", "Englisch", "Bulgarisch", "Spanisch", "Französisch", "Türkisch", "Niederländisch", "Italienisch"].map((language) => `
-              <label><input type="checkbox" name="language" value="${language}"><span>${language}</span></label>
+            <p data-i18n="languageHint">Wähle eine oder mehrere Sprachen.</p>
+            ${["Deutsch", "Englisch", "Bulgarisch", "Spanisch", "Französisch", "Türkisch", "Niederländisch", "Italienisch"].map((value) => `
+              <label><input type="checkbox" name="language" value="${value}"><span data-i18n="${choiceKey(value)}">${translateChoice(language, value)}</span></label>
             `).join("")}
-            <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
+            <button type="button" class="landing-picker-done" data-action="close-picker" data-i18n="apply">Übernehmen</button>
           </div>
         </details>
       </div>
-      ${trip ? "" : `<button class="btn btn-primary search-submit" type="submit" aria-label="Familien suchen">
-        ${icon("search")}<span class="search-button-label">Familien suchen</span>
+      ${trip ? "" : `<button class="btn btn-primary search-submit" type="submit" aria-label="Familien suchen" data-i18n-aria-label="searchFamilies">
+        ${icon("search")}<span class="search-button-label" data-i18n="searchFamilies">Familien suchen</span>
       </button>`}
-      ${reset ? '<button class="family-filter-reset" type="reset">Filter zurücksetzen</button>' : ""}
+      ${reset ? '<button class="family-filter-reset" type="reset" data-i18n="resetFilters">Filter zurücksetzen</button>' : ""}
     ${trip ? "</div>" : "</form>"}`;
 }
 
@@ -224,27 +241,27 @@ function landingPage() {
       <section class="hero-section">
         <div class="container hero-container">
           <div class="hero-copy">
-            <span class="eyebrow"><span class="eyebrow-dot"></span> FAMILIEN. URLAUB. ENTSPANNT.</span>
-            <h1>Spielkameraden<br><span>im Urlaub</span> finden.</h1>
-            <p class="hero-description">Damit deine Kinder im Urlaub schnell neue Freunde finden – und du die Zeit endlich auch zum Entspannen genießen kannst.</p>
+            <span class="eyebrow"><span class="eyebrow-dot"></span> <span data-i18n="heroKicker">FAMILIEN. URLAUB. ENTSPANNT.</span></span>
+            <h1><span data-i18n="heroTitle">Spielkameraden</span><br><span class="hero-title-highlight" data-i18n="heroTitleHighlight">im Urlaub</span> <span data-i18n="heroTitleEnd">finden.</span></h1>
+            <p class="hero-description" data-i18n="heroDescription">Damit deine Kinder im Urlaub schnell neue Freunde finden – und du die Zeit endlich auch zum Entspannen genießen kannst.</p>
             <div class="hero-actions">
-              <a class="btn btn-primary" href="#familien-suche">Familien entdecken ${icon("arrow-right")}</a>
-              <a class="btn btn-outline-primary hero-secondary" href="#wie-es-funktioniert">So funktioniert&apos;s</a>
+              <a class="btn btn-primary" href="#familien-suche"><span data-i18n="discoverFamilies">Familien entdecken</span> ${icon("arrow-right")}</a>
+              <a class="btn btn-outline-primary hero-secondary" href="#wie-es-funktioniert" data-i18n="howItWorks">So funktioniert&apos;s</a>
             </div>
           </div>
           <img class="hero-photo" src="${landingMobileHero}" alt="Vier fröhliche Kinder spielen gemeinsam im Wasser am Strand" fetchpriority="high">
           <div class="hero-benefits" aria-label="Deine Vorteile">
             <div class="hero-benefit">
               <span class="hero-benefit-icon">${icon("people")}</span>
-              <span>Spielkameraden<br>für deine Kinder</span>
+              <span data-i18n="benefitPlaymates">Spielkameraden für deine Kinder</span>
             </div>
             <div class="hero-benefit">
               <span class="hero-benefit-icon">${icon("check2")}</span>
-              <span>Mehr Entspannung<br>für dich</span>
+              <span data-i18n="benefitRelaxation">Mehr Entspannung für dich</span>
             </div>
             <div class="hero-benefit">
               <span class="hero-benefit-icon">${icon("shield-check")}</span>
-              <span>Ein sorgloser<br>Familienurlaub</span>
+              <span data-i18n="benefitHoliday">Ein sorgloser Familienurlaub</span>
             </div>
           </div>
         </div>
@@ -254,27 +271,27 @@ function landingPage() {
           <div class="search-panel">
             <div class="search-heading">
               <div>
-                <span class="search-kicker">Dein nächstes Abenteuer</span>
-                <h2>Wer ist zur gleichen Zeit dort?</h2>
+                <span class="search-kicker" data-i18n="nextAdventure">Dein nächstes Abenteuer</span>
+                <h2 data-i18n="whoIsThere">Wer ist zur gleichen Zeit dort?</h2>
               </div>
               <span class="search-heading-icon">${icon("compass")}</span>
             </div>
             ${searchForm()}
-            <p class="search-footnote">${icon("sparkles")} Unverbindlich suchen – ganz ohne Konto.</p>
+            <p class="search-footnote">${icon("sparkles")} <span data-i18n="freeSearch">Unverbindlich suchen – ganz ohne Konto.</span></p>
           </div>
         </div>
       </section>
       <section class="planned-trips-section" aria-labelledby="planned-trips-title">
         <div class="container">
           <div class="planned-trips-heading">
-            <h2 id="planned-trips-title">Schon geplante Reisen – sei dabei!</h2>
+            <h2 id="planned-trips-title" data-i18n="plannedTitle">Schon geplante Reisen – sei dabei!</h2>
           </div>
           <div class="planned-trips-grid">
             <p class="planned-trips-message" id="planned-trips-message" role="status">Reisen werden geladen …</p>
             <aside class="planned-trips-cta">
               <span class="planned-trips-cta-icon">${icon("compass")}</span>
-              <h3>Weitere Reisen entdecken</h3>
-              <p>Finde Familien, die zur gleichen Zeit unterwegs sind.</p>
+              <h3 data-i18n="discoverTrips">Weitere Reisen entdecken</h3>
+              <p data-i18n="findFamiliesSameTime">Finde Familien, die zur gleichen Zeit unterwegs sind.</p>
               <a class="planned-trips-cta-button" href="/search" aria-label="Familien suchen">${icon("arrow-right")}</a>
             </aside>
           </div>
@@ -283,9 +300,9 @@ function landingPage() {
       <section class="how-section" id="wie-es-funktioniert" aria-labelledby="how-title">
         <div class="container">
           <div class="section-heading text-center">
-            <span class="eyebrow">Gemeinsam planen</span>
-            <h2 id="how-title">So funktioniert <span>HolidayBuddies</span></h2>
-            <p>In vier einfachen Schritten zu gemeinsamen Urlaubsmomenten.</p>
+            <span class="eyebrow" data-i18n="planTogether">Gemeinsam planen</span>
+            <h2 id="how-title"><span data-i18n="howItWorks">So funktioniert</span> <span>HolidayBuddies</span></h2>
+            <p data-i18n="fourSteps">In vier einfachen Schritten zu gemeinsamen Urlaubsmomenten.</p>
           </div>
           <div class="how-steps">
             <svg class="how-step-arrows" viewBox="0 0 1200 100" preserveAspectRatio="none" aria-hidden="true">
@@ -304,8 +321,8 @@ function landingPage() {
                   <span class="how-step-icon-accent">${icon("person-plus-fill")}</span>
                 </div>
               </div>
-              <h3>Kostenlos registrieren</h3>
-              <p>Erstelle in wenigen Sekunden dein Familienkonto.</p>
+              <h3 data-i18n="registerFree">Kostenlos registrieren</h3>
+              <p data-i18n="registerHint">Erstelle in wenigen Sekunden dein Familienkonto.</p>
             </article>
             <article class="how-step">
               <div class="how-step-visual">
@@ -315,8 +332,8 @@ function landingPage() {
                   <span class="how-step-icon-accent">${icon("airplane-fill")}</span>
                 </div>
               </div>
-              <h3>Deine Reise eintragen</h3>
-              <p>Gib Reiseziel, Reisezeitraum und das Alter deiner Kinder an.</p>
+              <h3 data-i18n="enterTrip">Deine Reise eintragen</h3>
+              <p data-i18n="enterTripHint">Gib Reiseziel, Reisezeitraum und das Alter deiner Kinder an.</p>
             </article>
             <article class="how-step">
               <div class="how-step-visual">
@@ -326,8 +343,8 @@ function landingPage() {
                   <span class="how-step-icon-accent">${icon("search")}</span>
                 </div>
               </div>
-              <h3>Passende Familien finden</h3>
-              <p>Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind.</p>
+              <h3 data-i18n="findMatching">Passende Familien finden</h3>
+              <p data-i18n="discoverSamePlace">Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind.</p>
             </article>
             <article class="how-step">
               <div class="how-step-visual">
@@ -337,37 +354,37 @@ function landingPage() {
                   <span class="how-step-icon-accent">${icon("heart-fill")}</span>
                 </div>
               </div>
-              <h3>In Kontakt kommen</h3>
-              <p>Tauscht euch aus, plant gemeinsame Aktivitäten und freut euch auf einen noch schöneren Urlaub!</p>
+              <h3 data-i18n="connect">In Kontakt kommen</h3>
+              <p data-i18n="connectHint">Tauscht euch aus, plant gemeinsame Aktivitäten und freut euch auf einen noch schöneren Urlaub!</p>
             </article>
           </div>
           <div class="benefits-bar" aria-label="Vorteile von HolidayBuddies">
             <div class="benefit-item">
               <span class="benefit-icon">${icon("people")}</span>
               <div>
-                <h3>Gleichgesinnte Familien</h3>
-                <p>Familien mit Kindern in ähnlichem Alter</p>
+                <h3 data-i18n="likeMinded">Gleichgesinnte Familien</h3>
+                <p data-i18n="similarAges">Familien mit Kindern in ähnlichem Alter</p>
               </div>
             </div>
             <div class="benefit-item">
               <span class="benefit-icon">${icon("calendar-event")}</span>
               <div>
-                <h3>Gleiche Reisezeit &amp; Ort</h3>
-                <p>Gemeinsame Urlaubsmomente</p>
+                <h3 data-i18n="samePlace">Gleiche Reisezeit &amp; Ort</h3>
+                <p data-i18n="sharedMoments">Gemeinsame Urlaubsmomente</p>
               </div>
             </div>
             <div class="benefit-item">
               <span class="benefit-icon">${icon("shield-check")}</span>
               <div>
-                <h3>Sicher &amp; vertrauensvoll</h3>
-                <p>Eltern entscheiden selbst, mit wem sie Kontakt aufnehmen</p>
+                <h3 data-i18n="safe">Sicher &amp; vertrauensvoll</h3>
+                <p data-i18n="parentsDecide">Eltern entscheiden selbst, mit wem sie Kontakt aufnehmen</p>
               </div>
             </div>
             <div class="benefit-item">
               <span class="benefit-icon">${icon("heart")}</span>
               <div>
-                <h3>Mehr als nur Urlaub</h3>
-                <p>Neue Freundschaften – oft über die Reise hinaus</p>
+                <h3 data-i18n="moreThanHoliday">Mehr als nur Urlaub</h3>
+                <p data-i18n="friendships">Neue Freundschaften – oft über die Reise hinaus</p>
               </div>
             </div>
           </div>
@@ -377,9 +394,9 @@ function landingPage() {
         <div class="container family-trip-cta-container">
           <div class="family-trip-cta-content">
             <span class="family-trip-cta-icon" aria-hidden="true">${icon("sun")}</span>
-            <h2 id="family-trip-cta-title">Bereit für deinen nächsten Familienurlaub?</h2>
-            <p>Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind.</p>
-            <a class="btn btn-primary family-trip-cta-button" href="/register">Jetzt kostenlos starten ${icon("arrow-right")}</a>
+            <h2 id="family-trip-cta-title" data-i18n="readyHoliday">Bereit für deinen nächsten Familienurlaub?</h2>
+            <p data-i18n="discoverSamePlace">Entdecke Familien, die zur gleichen Zeit am gleichen Ort sind.</p>
+            <a class="btn btn-primary family-trip-cta-button" href="/register"><span data-i18n="startFree">Jetzt kostenlos starten</span> ${icon("arrow-right")}</a>
           </div>
         </div>
       </section>
@@ -392,15 +409,8 @@ function formatDate(date) {
 }
 
 function familyCard(family, favorites = new Set(), contacted = new Set(), personalReady = true) {
-  const children = family.children.map((child) => `${child.age} Jahre${child.gender ? ` (${child.gender})` : ""}`).join(", ");
-  const date = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric" });
-  const startDate = new Date(`${family.start_date}T12:00:00`);
-  const endDate = new Date(`${family.end_date}T12:00:00`);
-  const sameMonth = startDate.getMonth() === endDate.getMonth()
-    && startDate.getFullYear() === endDate.getFullYear();
-  const dateRange = sameMonth
-    ? `${new Intl.DateTimeFormat("de-DE", { day: "numeric" }).format(startDate)}.–${date.format(endDate)}`
-    : `${date.format(startDate)} – ${date.format(endDate)}`;
+  const children = family.children.map((child) => `${translate(language, "yearCount", { count: child.age })}${child.gender ? ` (${translateChoice(language, child.gender)})` : ""}`).join(", ");
+  const dateRange = tripDateRange(family.start_date, family.end_date);
   const isFavorite = favorites.has(family.trip_reference);
   const isContacted = contacted.has(family.trip_reference);
   const location = [family.region, family.destination, family.country].filter(Boolean).join(", ");
@@ -409,35 +419,36 @@ function familyCard(family, favorites = new Set(), contacted = new Set(), person
       <figure class="destination-photo family-result-photo">${photoMarkup(family, "family-result-image")}</figure>
       <div class="family-result-content">
         <div class="family-result-heading">
-          <div class="family-result-name">${icon("people-fill")}<h3>Familie</h3></div>
-          <button class="family-favorite${isFavorite ? " is-favorite" : ""}" type="button" data-favorite="${escapeHTML(family.trip_reference)}" aria-label="${isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}: Familie in ${escapeHTML(family.destination)}" aria-pressed="${isFavorite}"${personalReady ? "" : " disabled"}>
+          <div class="family-result-name">${icon("people-fill")}<h3>${translate(language, "family")}</h3></div>
+          <button class="family-favorite${isFavorite ? " is-favorite" : ""}" type="button" data-favorite="${escapeHTML(family.trip_reference)}" aria-label="${translate(language, isFavorite ? "removeFavorite" : "addFavorite")}: ${translate(language, "family")} – ${escapeHTML(family.destination)}" aria-pressed="${isFavorite}"${personalReady ? "" : " disabled"}>
             ${icon(isFavorite ? "heart-fill" : "heart")}
           </button>
         </div>
         <div class="family-result-location">${icon("geo-alt-fill")}<span>${escapeHTML(location)}</span></div>
         <div class="family-result-facts">
           <span>${icon("calendar3")}<span>${dateRange}</span></span>
-          <span>${icon("people-fill")}<span>${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</span></span>
-          <span>${icon("globe2")}<span>${escapeHTML(family.languages.join(", ") || "Keine Sprachen angegeben")}</span></span>
+          <span>${icon("people-fill")}<span>${family.children.length ? `${translate(language, family.children.length === 1 ? "childCountOne" : "childCountOther", { count: family.children.length })}: ${escapeHTML(children)}` : translate(language, "noChildren")}</span></span>
+          <span>${icon("globe2")}<span>${escapeHTML(family.languages.map((value) => translateChoice(language, value)).join(", ") || translate(language, "noLanguages"))}</span></span>
         </div>
         ${tripDetailsMarkup(family)}
-        ${isContacted ? '<p class="contacted-label" role="status">Kontaktiert</p>' : `<button class="family-contact-button" type="button" data-contact="${escapeHTML(family.trip_reference)}"${personalReady ? "" : " disabled"}>
-          ${icon("chat-dots")} Kontakt anfragen
+        ${isContacted ? `<p class="contacted-label" role="status">${translate(language, "contacted")}</p>` : `<button class="family-contact-button" type="button" data-contact="${escapeHTML(family.trip_reference)}"${personalReady ? "" : " disabled"}>
+          ${icon("chat-dots")} ${translate(language, "contactRequest")}
         </button>`}
         <p data-contact-status role="status" hidden></p>
       </div>
     </article>`;
 }
 
-function pageHero({ variant, image, alt, eyebrow, heading, highlight, description }) {
+function pageHero({ variant, image }) {
+  const search = variant === "search";
   return `
     <section class="page-hero page-hero-${variant}">
-      <img class="page-hero-image" src="${image}" alt="${alt}" fetchpriority="high">
+      <img class="page-hero-image" src="${image}" data-i18n-alt="${search ? "searchHeroAlt" : "tripsHeroAlt"}" alt="${translate(language, search ? "searchHeroAlt" : "tripsHeroAlt")}" fetchpriority="high">
       <div class="container page-hero-inner">
         <div class="page-hero-copy">
-          <span class="eyebrow"><span class="eyebrow-dot"></span> ${eyebrow}</span>
-          <h1>${heading}<br><span>${highlight}</span></h1>
-          <p>${description}</p>
+          <span class="eyebrow"><span class="eyebrow-dot"></span> <span data-i18n="${search ? "search" : "trips"}"></span></span>
+          <h1><span class="page-hero-heading" data-i18n="${search ? "searchHeroHeading" : "tripsHeroHeading"}"></span><br><span data-i18n="${search ? "searchHeroHighlight" : "tripsHeroHighlight"}"></span></h1>
+          <p data-i18n="${search ? "searchHeroDescription" : "tripsHeroDescription"}"></p>
         </div>
       </div>
     </section>`;
@@ -457,19 +468,19 @@ function searchPage() {
       })}
       <section class="container family-search-layout" aria-label="Familien suchen und Ergebnisse">
         <aside class="family-filter-card shared-search" aria-labelledby="family-filter-title">
-          <h2 id="family-filter-title">${icon("funnel")} Suche anpassen</h2>
+          <h2 id="family-filter-title">${icon("funnel")} <span data-i18n="searchFilter">Suche anpassen</span></h2>
           ${searchForm({ reset: true })}
         </aside>
         <div class="family-results-panel">
           <div class="family-results-heading">
             <div>
-              <h2 id="results-title">Passende Familien</h2>
+              <h2 id="results-title" data-i18n="searchResults">Passende Familien</h2>
               <p id="results-count" aria-live="polite"></p>
             </div>
-            <label class="family-sort-control" for="sort-results">Sortieren nach
-              <select id="sort-results" aria-label="Suchergebnisse sortieren">
-                <option value="newest">Neueste zuerst</option>
-                <option value="soonest">Reisedatum (aufsteigend)</option>
+            <label class="family-sort-control" for="sort-results"><span data-i18n="sortBy">Sortieren nach</span>
+              <select id="sort-results" aria-label="Suchergebnisse sortieren" data-i18n-aria-label="sortResults">
+                <option value="newest" data-i18n="newest">Neueste zuerst</option>
+                <option value="soonest" data-i18n="soonest">Reisedatum (aufsteigend)</option>
               </select>
             </label>
           </div>
@@ -479,23 +490,23 @@ function searchPage() {
           <p id="personal-results-error" role="alert" hidden></p>
           <div class="empty-state d-none" id="empty-results">
             <span>${icon("search")}</span>
-            <h3>Keine Familien gefunden</h3>
-            <p>Versuche, deine Suche anzupassen – vielleicht wartet eure Urlaubscrew nur ein paar Filter weiter.</p>
+            <h3 data-i18n="noFamilies">Keine Familien gefunden</h3>
+            <p data-i18n="noFamiliesHint">Versuche, deine Suche anzupassen – vielleicht wartet eure Urlaubscrew nur ein paar Filter weiter.</p>
           </div>
         </div>
       </section>
       <dialog class="trip-dialog" id="contact-dialog" aria-labelledby="contact-title">
         <form id="contact-form">
-          <div class="trip-dialog-heading"><h2 id="contact-title">Nachricht an die Familie</h2>
-            <button type="button" class="trip-dialog-close" data-contact-close aria-label="Dialog schließen">${icon("x-lg")}</button></div>
-          <label class="form-label" for="contact-message">Deine Nachricht</label>
+          <div class="trip-dialog-heading"><h2 id="contact-title" data-i18n="contactTitle">Nachricht an die Familie</h2>
+            <button type="button" class="trip-dialog-close" data-contact-close aria-label="Dialog schließen" data-i18n-aria-label="closeDialog">${icon("x-lg")}</button></div>
+          <label class="form-label" for="contact-message" data-i18n="yourMessage">Deine Nachricht</label>
           <textarea class="form-control" id="contact-message" name="message" rows="5" maxlength="2000" required></textarea>
-          <fieldset class="mt-3"><legend class="fs-6">Gemeinsame Interessen (optional)</legend>
+          <fieldset class="mt-3"><legend class="fs-6" data-i18n="sharedInterests">Gemeinsame Interessen (optional)</legend>
             <div class="d-flex flex-wrap gap-2">${["Strand", "Schwimmen", "Ausflüge", "Natur", "Sport", "Spielen", "Kultur", "Essen"].map((interest, index) =>
-    `<input type="checkbox" class="btn-check" name="interest" value="${escapeHTML(interest)}" id="interest-${index}" autocomplete="off"><label class="btn btn-outline-primary btn-sm" for="interest-${index}">${escapeHTML(interest)}</label>`).join("")}</div>
+    `<input type="checkbox" class="btn-check" name="interest" value="${escapeHTML(interest)}" id="interest-${index}" autocomplete="off"><label class="btn btn-outline-primary btn-sm" for="interest-${index}" data-i18n="${choiceKey(interest)}">${escapeHTML(translateChoice(language, interest))}</label>`).join("")}</div>
           </fieldset>
           <p class="mt-3 mb-0" id="contact-form-status" role="status" hidden></p>
-          <div class="trip-dialog-actions"><button class="btn btn-outline-primary" type="button" data-contact-close>Abbrechen</button><button class="btn btn-primary" type="submit">Anfrage senden</button></div>
+          <div class="trip-dialog-actions"><button class="btn btn-outline-primary" type="button" data-contact-close data-i18n="cancel">Abbrechen</button><button class="btn btn-primary" type="submit" data-i18n="sendRequest">Anfrage senden</button></div>
         </form>
       </dialog>
     </main>`;
@@ -512,16 +523,7 @@ function escapeHTML(value) {
 }
 
 function tripDateRange(start, end) {
-  const startDate = new Date(`${start}T12:00:00`);
-  const endDate = new Date(`${end}T12:00:00`);
-  const fullDate = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric" });
-  if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
-    return `${fullDate.format(startDate)} – ${fullDate.format(endDate)}`;
-  }
-  const startDay = new Intl.DateTimeFormat("de-DE", { day: "numeric" })
-    .format(startDate);
-  const formattedEnd = fullDate.format(endDate);
-  return `${startDay}–${formattedEnd}`;
+  return formatTripDateRange(language, start, end);
 }
 
 function tripDuration(start, end) {
@@ -544,27 +546,27 @@ function myTripsPage() {
       })}
       <section class="container my-trips-content" aria-label="Deine Reisen">
         <button class="btn btn-primary my-trips-create" type="button" data-trip-action="new">
-          ${icon("plus-lg")} Neue Reise hinzufügen
+          ${icon("plus-lg")} <span data-i18n="addTrip">Neue Reise hinzufügen</span>
         </button>
         <div id="my-trips-list" class="my-trips-list">
-          <p role="status">Reisen werden geladen …</p>
+          <p role="status" data-i18n="loadingTrips">Reisen werden geladen …</p>
         </div>
         <div id="trips-pagination"></div>
         <section class="contacted-families mt-4" aria-labelledby="contacted-title">
-          <h2 id="contacted-title">Kontaktierte Familien</h2>
-          <div id="contacted-list"><p role="status">Kontaktanfragen werden geladen …</p></div>
+          <h2 id="contacted-title" data-i18n="contactedFamilies">Kontaktierte Familien</h2>
+          <div id="contacted-list"><p role="status" data-i18n="loadingRequests">Kontaktanfragen werden geladen …</p></div>
           <div id="contacted-pagination"></div>
         </section>
         <section class="contacted-families mt-4" aria-labelledby="received-title">
-          <h2 id="received-title">Eingegangene Kontaktanfragen</h2>
-          <div id="received-list"><p role="status">Kontaktanfragen werden geladen …</p></div>
+          <h2 id="received-title" data-i18n="receivedRequests">Eingegangene Kontaktanfragen</h2>
+          <div id="received-list"><p role="status" data-i18n="loadingRequests">Kontaktanfragen werden geladen …</p></div>
           <div id="received-pagination"></div>
         </section>
         <button class="my-trips-bottom-cta" type="button" data-trip-action="new">
           <span class="my-trips-bottom-icon">${icon("plus-lg")}</span>
           <span class="my-trips-bottom-copy">
-            <strong>Weitere Reise erstellen</strong>
-            <span>Plane deinen nächsten Urlaub und finde passende Familien.</span>
+            <strong data-i18n="anotherTrip">Weitere Reise erstellen</strong>
+            <span data-i18n="anotherTripHint">Plane deinen nächsten Urlaub und finde passende Familien.</span>
           </span>
           <span class="my-trips-flight" aria-hidden="true">
             <svg viewBox="0 0 180 65" preserveAspectRatio="none">
@@ -581,11 +583,11 @@ function myTripsPage() {
             <div class="modal-header">
               <span class="trip-visibility-modal-icon" aria-hidden="true">${icon("eye")}</span>
               <h2 class="modal-title" id="trip-visibility-title"></h2>
-              <button type="button" class="btn-close" data-visibility-cancel aria-label="Schließen"></button>
+              <button type="button" class="btn-close" data-visibility-cancel aria-label="Schließen" data-i18n-aria-label="closeDialog"></button>
             </div>
             <div class="modal-body" id="trip-visibility-description"></div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-outline-primary" data-visibility-cancel>Abbrechen</button>
+              <button type="button" class="btn btn-outline-primary" data-visibility-cancel data-i18n="cancel">Abbrechen</button>
               <button type="button" class="btn btn-primary" data-visibility-confirm></button>
             </div>
           </div>
@@ -595,35 +597,35 @@ function myTripsPage() {
         <form id="trip-form">
           <div class="trip-dialog-heading">
             <div>
-              <span class="eyebrow">Urlaub planen</span>
-              <h2 id="trip-dialog-title">Neue Reise erstellen</h2>
+              <span class="eyebrow" data-i18n="planHoliday">Urlaub planen</span>
+              <h2 id="trip-dialog-title" data-i18n="newTrip">Neue Reise erstellen</h2>
             </div>
-            <button class="trip-dialog-close" type="button" data-trip-action="close" aria-label="Dialog schließen">${icon("x-lg")}</button>
+            <button class="trip-dialog-close" type="button" data-trip-action="close" aria-label="Dialog schließen" data-i18n-aria-label="closeDialog">${icon("x-lg")}</button>
           </div>
           <input type="hidden" name="id">
           <div class="shared-search">${searchForm({ trip: true })}</div>
           <div class="trip-extra-form">
-            <label for="trip-description">Beschreibung der Reise oder Suche <span>(optional)</span></label>
-            <p>Erzähle, wie ihr euren Urlaub verbringen möchtet und wen ihr gern kennenlernen würdet. Beschreibe zum Beispiel, welche Aktivitäten euren Kindern Spaß machen. Bitte teile keine Kontaktdaten oder sensiblen persönlichen Angaben.</p>
-            <textarea class="form-control" id="trip-description" name="description" rows="4" maxlength="1200" placeholder="Wir freuen uns auf gemeinsame Strandtage und Ausflüge …"></textarea>
+            <label for="trip-description" data-i18n="tripDescription"></label>
+            <p data-i18n="descriptionHint"></p>
+            <textarea class="form-control" id="trip-description" name="description" rows="4" maxlength="1200" data-i18n-placeholder="descriptionExample"></textarea>
             <fieldset class="trip-interest-options">
-              <legend>Interessen <span>(optional)</span></legend>
-              <p>Wähle die Aktivitäten, die zu eurer Familie passen.</p>
+              <legend data-i18n="interestsOptional"></legend>
+              <p data-i18n="interestsHint"></p>
               <div class="d-flex flex-wrap gap-2">${tripInterests.map((interest, index) =>
-    `<input class="btn-check" type="checkbox" name="tripInterest" id="trip-interest-${index}" value="${escapeHTML(interest)}" autocomplete="off"><label class="btn btn-outline-primary btn-sm" for="trip-interest-${index}">${escapeHTML(interest)}</label>`).join("")}</div>
-              <label for="trip-custom-interests">Weitere Interessen <span>(optional, durch Kommas getrennt)</span></label>
-              <input class="form-control" id="trip-custom-interests" name="customInterests" type="text" maxlength="1000" placeholder="z. B. Schnorcheln, Musik">
+    `<input class="btn-check" type="checkbox" name="tripInterest" id="trip-interest-${index}" value="${escapeHTML(interest)}" autocomplete="off"><label class="btn btn-outline-primary btn-sm" for="trip-interest-${index}" data-i18n="${choiceKey(interest)}">${escapeHTML(translateChoice(language, interest))}</label>`).join("")}</div>
+              <label for="trip-custom-interests" data-i18n="customInterests"></label>
+              <input class="form-control" id="trip-custom-interests" name="customInterests" type="text" maxlength="1000" data-i18n-placeholder="customInterestsExample">
             </fieldset>
-            <label for="trip-photo">Eigenes Reisefoto <span>(optional)</span></label>
-            <p>Wähle ein JPEG-, PNG- oder WebP-Bild bis 5 MB. Wenn du kein Foto hochlädst, verwenden wir das Bild des Reiseziels oder eine neutrale Platzhaltergrafik. Lade nur Bilder hoch, die du teilen darfst; bei einer Freigabe ist das Foto öffentlich sichtbar.</p>
+            <label for="trip-photo" data-i18n="ownPhoto"></label>
+            <p data-i18n="photoHint"></p>
             <input class="form-control" id="trip-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
-            <label class="trip-photo-remove" id="trip-photo-remove-label" hidden><input type="checkbox" name="removePhoto"> Eigenes Foto entfernen</label>
+            <label class="trip-photo-remove" id="trip-photo-remove-label" hidden><input type="checkbox" name="removePhoto"> <span data-i18n="removePhoto"></span></label>
           </div>
           <p id="trip-destinations-notice" role="status" hidden></p>
           <p class="trip-form-message" id="trip-form-message" role="status" hidden></p>
           <div class="trip-dialog-actions">
-            <button class="btn btn-outline-primary" type="button" data-trip-action="close">Abbrechen</button>
-            <button class="btn btn-primary" type="submit">Reise speichern</button>
+            <button class="btn btn-outline-primary" type="button" data-trip-action="close" data-i18n="cancel">Abbrechen</button>
+            <button class="btn btn-primary" type="submit" data-i18n="saveTrip">Reise speichern</button>
           </div>
         </form>
       </dialog>
@@ -634,16 +636,16 @@ function renderMyTrips(myTrips) {
   if (!myTrips.length) {
     return `<div class="my-trips-empty">
       <span>${icon("airplane")}</span>
-      <h2>Deine nächste Reise wartet schon</h2>
-      <p>Erstelle eine Reise und entdecke Familien, die zur gleichen Zeit unterwegs sind.</p>
-      <button class="btn btn-primary" type="button" data-trip-action="new">${icon("plus-lg")} Reise erstellen</button>
+      <h2>${translate(language, "emptyTripsTitle")}</h2>
+      <p>${translate(language, "emptyTripsHint")}</p>
+      <button class="btn btn-primary" type="button" data-trip-action="new">${icon("plus-lg")} ${translate(language, "createTrip")}</button>
     </div>`;
   }
 
   const today = new Date().toISOString().slice(0, 10);
   return myTrips.map((trip) => {
     const past = trip.end < today;
-    const children = trip.children.map((child) => `${child.age}${child.gender ? ` (${child.gender})` : ""}`).join(" und ");
+    const children = trip.children.map((child) => `${translate(language, "yearCount", { count: child.age })}${child.gender ? ` (${translateChoice(language, child.gender)})` : ""}`).join(", ");
     const query = new URLSearchParams({
       destination: trip.destination,
       start: trip.start,
@@ -653,42 +655,42 @@ function renderMyTrips(myTrips) {
       <article class="my-trip-card">
         <figure class="destination-photo my-trip-photo">
           ${photoMarkup({ destination: trip.destination, country: trip.country, destinationId: trip.locationData.destinationId, photo_path: trip.photo_path }, "")}
-          <span class="my-trip-status${past ? " is-past" : ""}">${icon(past ? "calendar-check" : "calendar-event")}${past ? "Vergangen" : "Bevorstehend"}</span>
+          <span class="my-trip-status${past ? " is-past" : ""}">${icon(past ? "calendar-check" : "calendar-event")}${translate(language, past ? "past" : "upcoming")}</span>
         </figure>
         <div class="my-trip-main">
           <div class="my-trip-title">
             <h2>${escapeHTML(trip.destination)}</h2>
             ${trip.accommodation ? `<p>${icon("building")} ${escapeHTML(trip.accommodation)}</p>` : ""}
             ${trip.region ? `<p>${icon("geo-alt-fill")} ${escapeHTML(trip.region)}</p>` : ""}
-            ${trip.legacyRegion ? `<p>Frühere Orts-/Regionsangabe: ${escapeHTML(trip.legacyRegion)}</p>` : ""}
+            ${trip.legacyRegion ? `<p>${escapeHTML(translate(language, "previousRegion", { region: trip.legacyRegion }))}</p>` : ""}
           </div>
           <div class="my-trip-details">
             <div class="my-trip-detail my-trip-date">
               <span class="my-trip-detail-icon">${icon("calendar3")}</span>
-              <span>${escapeHTML(tripDateRange(trip.start, trip.end))}<small>${tripDuration(trip.start, trip.end)} Tage</small></span>
+              <span>${escapeHTML(tripDateRange(trip.start, trip.end))}<small>${translate(language, "days", { count: tripDuration(trip.start, trip.end) })}</small></span>
             </div>
             <span class="my-trip-divider" aria-hidden="true"></span>
             <div class="my-trip-detail">
               <span class="my-trip-detail-icon">${icon("people-fill")}</span>
-              <span>Kinder: ${escapeHTML(children)} ${trip.children.length === 1 ? "Jahr" : "Jahre"}</span>
+              <span>${translate(language, "childrenLabel")}: ${escapeHTML(children)}</span>
             </div>
             <div class="my-trip-detail my-trip-languages">
               <span class="my-trip-detail-icon">${icon("globe2")}</span>
-              <span>${escapeHTML(trip.languages.join(", "))}</span>
+              <span>${escapeHTML(trip.languages.map((value) => translateChoice(language, value)).join(", "))}</span>
             </div>
           </div>
           ${tripDetailsMarkup(trip)}
         </div>
         <div class="my-trip-controls">
           <label class="my-trip-visibility">
-            <span>${icon("eye")} Für andere sichtbar</span>
-            <input type="checkbox" data-trip-visibility="${trip.id}" aria-label="${escapeHTML(trip.destination)} für andere Familien sichtbar machen"${trip.visible ? " checked" : ""}>
+            <span>${icon("eye")} ${translate(language, "visibleToOthers")}</span>
+            <input type="checkbox" data-trip-visibility="${trip.id}" aria-label="${escapeHTML(translate(language, "visibilityFor", { destination: trip.destination }))}"${trip.visible ? " checked" : ""}>
             <span class="my-trip-switch" aria-hidden="true"></span>
           </label>
           <div class="my-trip-actions">
-            <button type="button" data-trip-action="edit" data-trip-id="${trip.id}">${icon("pencil")}<span>Bearbeiten</span></button>
-            <a href="/search?${query}" aria-label="Passende Familien für ${escapeHTML(trip.destination)} finden">${icon("people")}<span>Passende Familien</span></a>
-            <button type="button" data-trip-action="remove" data-trip-id="${trip.id}">${icon("trash3")}<span>Entfernen</span></button>
+            <button type="button" data-trip-action="edit" data-trip-id="${trip.id}">${icon("pencil")}<span>${translate(language, "edit")}</span></button>
+            <a href="/search?${query}" aria-label="${escapeHTML(translate(language, "findFor", { destination: trip.destination }))}">${icon("people")}<span>${translate(language, "searchResults")}</span></a>
+            <button type="button" data-trip-action="remove" data-trip-id="${trip.id}">${icon("trash3")}<span>${translate(language, "remove")}</span></button>
           </div>
         </div>
       </article>`;
@@ -702,49 +704,49 @@ function authPage(mode) {
       <section class="auth-card">
         <div class="auth-illustration">
           <span class="auth-sun" aria-hidden="true">✳</span>
-          <span class="auth-illustration-tag">${icon("heart-fill")} Urlaubsmomente teilen</span>
+          <span class="auth-illustration-tag">${icon("heart-fill")} <span data-i18n="shareMoments">Urlaubsmomente teilen</span></span>
           <div class="auth-illustration-copy">
-            <span>Gemeinsam ist’s schöner</span>
-            <p>Die schönste Urlaubserinnerung? Die neuen Freunde, die man unterwegs findet.</p>
+            <span data-i18n="betterTogether">Gemeinsam ist’s schöner</span>
+            <p data-i18n="holidayMemory">Die schönste Urlaubserinnerung? Die neuen Freunde, die man unterwegs findet.</p>
           </div>
         </div>
         <div class="auth-form-side">
-          <a class="auth-back" href="/">${icon("arrow-left")} Zurück zur Startseite</a>
+          <a class="auth-back" href="/">${icon("arrow-left")} <span data-i18n="backHome">Zurück zur Startseite</span></a>
           <div class="auth-form-content">
-            <span class="eyebrow">${registering ? "Schön, dass du da bist" : "Willkommen zurück"}</span>
-            <h1>${registering ? "Finde eure Urlaubscrew." : "Schön, dich zu sehen."}</h1>
-            <p class="auth-subtitle">${registering ? "Erstelle dein Profil und entdeckt gemeinsam mehr." : "Melde dich an und finde Familien für euer nächstes Abenteuer."}</p>
+            <span class="eyebrow" data-i18n="${registering ? "welcomeRegister" : "welcomeBack"}"></span>
+            <h1 data-i18n="${registering ? "registerHeading" : "loginHeading"}"></h1>
+            <p class="auth-subtitle" data-i18n="${registering ? "registerSubtitle" : "loginSubtitle"}"></p>
             <form id="auth-form">
               ${registering ? `
                 <div class="mb-3">
-                  <label class="form-label" for="name">Dein Name</label>
-                  <input class="form-control" id="name" name="name" type="text" autocomplete="name" placeholder="z. B. Alex Muster" maxlength="100" required>
+                  <label class="form-label" for="name" data-i18n="yourName">Dein Name</label>
+                  <input class="form-control" id="name" name="name" type="text" autocomplete="name" placeholder="z. B. Alex Muster" data-i18n-placeholder="nameExample" maxlength="100" required>
                 </div>` : ""}
               <div class="mb-3">
-                <label class="form-label" for="email">E-Mail-Adresse</label>
+                <label class="form-label" for="email" data-i18n="email">E-Mail-Adresse</label>
                 <input class="form-control" id="email" name="email" type="email" autocomplete="email" placeholder="du@beispiel.de" required>
               </div>
               <div class="mb-3">
-                <label class="form-label" for="password">Passwort</label>
-                <input class="form-control" id="password" name="password" type="password" autocomplete="${registering ? "new-password" : "current-password"}" placeholder="${registering ? "Mindestens 8 Zeichen" : "Dein Passwort"}"${registering ? ' minlength="8"' : ""} required>
+                <label class="form-label" for="password" data-i18n="password">Passwort</label>
+                <input class="form-control" id="password" name="password" type="password" autocomplete="${registering ? "new-password" : "current-password"}" data-i18n-placeholder="${registering ? "passwordMinimum" : "yourPassword"}"${registering ? ' minlength="8"' : ""} required>
               </div>
               ${registering ? `
                 <div class="form-check auth-check">
                   <input class="form-check-input" id="privacy" type="checkbox" required>
-                  <label class="form-check-label" for="privacy">Ich habe die <a href="#auth-demo-note">Informationen zur Verarbeitung</a> gelesen.</label>
+                  <label class="form-check-label" for="privacy"><span data-i18n="privacyBefore"></span> <a href="#auth-demo-note" data-i18n="privacyLink"></a> <span data-i18n="privacyAfter"></span></label>
                 </div>` : `
                 <div class="auth-options">
                   <label class="form-check">
                     <input class="form-check-input" type="checkbox" id="remember" checked>
-                    <span class="form-check-label">Angemeldet bleiben</span>
+                    <span class="form-check-label" data-i18n="rememberMe">Angemeldet bleiben</span>
                   </label>
-                  <a href="#auth-notice" data-action="reset-password">Passwort vergessen?</a>
+                  <a href="#auth-notice" data-action="reset-password" data-i18n="forgotPassword">Passwort vergessen?</a>
                 </div>`}
-              <button class="btn btn-primary auth-submit" type="submit">${registering ? "Kostenloses Konto erstellen" : "Anmelden"} ${icon("arrow-right")}</button>
+              <button class="btn btn-primary auth-submit" type="submit"><span data-i18n="${registering ? "createAccount" : "login"}"></span> ${icon("arrow-right")}</button>
               <p class="prototype-message" id="auth-notice" role="status" hidden></p>
             </form>
-            <p class="auth-switch">${registering ? "Schon ein Konto?" : "Noch kein Konto?"} <a href="${registering ? "/login" : "/register"}">${registering ? "Jetzt anmelden" : "Kostenlos registrieren"}</a></p>
-            <p class="auth-demo-note" id="auth-demo-note">${icon("info-circle")} Für dein Konto werden deine E-Mail-Adresse und dein Anzeigename bei Supabase gespeichert. Weitere Funktionen wie Reisen und Kontaktanfragen sind teilweise noch Prototypen.</p>
+            <p class="auth-switch"><span data-i18n="${registering ? "haveAccount" : "noAccount"}"></span> <a href="${registering ? "/login" : "/register"}" data-i18n="${registering ? "loginNow" : "registerFree"}"></a></p>
+            <p class="auth-demo-note" id="auth-demo-note">${icon("info-circle")} <span data-i18n="authNote"></span></p>
           </div>
         </div>
       </section>
@@ -761,15 +763,38 @@ function updateAuthNavigation() {
   const nav = document.querySelector("#auth-navigation");
   if (!nav) return;
   nav.innerHTML = currentSession
-    ? '<button class="btn btn-primary nav-cta" type="button" data-action="sign-out">Abmelden</button>'
-    : '<a class="nav-link" href="/login">Anmelden</a><a class="btn btn-primary nav-cta" href="/register">Kostenlos starten</a>';
+    ? '<button class="btn btn-primary nav-cta" type="button" data-action="sign-out" data-i18n="logout">Abmelden</button>'
+    : '<a class="nav-link" href="/login" data-i18n="login">Anmelden</a><a class="btn btn-primary nav-cta" href="/register" data-i18n="register">Kostenlos starten</a>';
+  translateElements(nav, language);
 }
 
 function showAuthNotice(message) {
   const notice = document.querySelector("#auth-notice");
   if (!notice) return;
+  delete notice.dataset.i18n;
   notice.textContent = message;
   notice.hidden = false;
+}
+
+function showAuthKey(key) {
+  const notice = document.querySelector("#auth-notice");
+  if (!notice) return;
+  showTranslatedText(notice, key);
+  notice.hidden = false;
+}
+
+function authErrorKey(error) {
+  return ({
+    invalid_credentials: "authInvalid", email_not_confirmed: "authUnconfirmed",
+    over_email_send_rate_limit: "authRate", over_request_rate_limit: "authRate",
+    weak_password: "authWeak", email_address_invalid: "authEmail", user_already_exists: "authExists",
+  })[error?.code] ?? "authFailed";
+}
+
+function showTranslatedText(element, key) {
+  element.dataset.i18n = key;
+  element.textContent = translate(language, key);
+  element.lang = language;
 }
 
 async function loadPublicFamilies() {
@@ -808,9 +833,6 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
   const start = form.elements.namedItem("start");
   const end = form.elements.namedItem("end");
   let values = [];
-  const dateFormatter = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const monthFormatter = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
-  const dayFormatter = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   let calendarMonth = new Date();
   calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
 
@@ -819,7 +841,15 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
     const month = calendarMonth.getMonth();
     const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    form.querySelector("[data-calendar-month-label]").textContent = monthFormatter.format(calendarMonth);
+    const locale = localeForLanguage(language);
+    const monthLabel = form.querySelector("[data-calendar-month-label]");
+    monthLabel.lang = language;
+    monthLabel.textContent = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(calendarMonth);
+    const dayFormatter = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    form.querySelectorAll(".landing-calendar-weekdays span").forEach((day, index) => {
+      day.lang = language;
+      day.textContent = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, index + 1));
+    });
     const blanks = '<span aria-hidden="true"></span>'.repeat(firstWeekday);
     const days = Array.from({ length: daysInMonth }, (_, index) => {
       const date = new Date(year, month, index + 1);
@@ -832,20 +862,29 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
   }
 
   function updateSummary() {
+    form.querySelectorAll("[data-child-summary], [data-language-summary], [data-date-summary]").forEach((element) => { element.lang = language; });
+    childAgeList.querySelectorAll(".child-age-entry").forEach((entry, index) => {
+      const values = { number: index + 1 };
+      entry.querySelector(".child-entry-label").textContent = translate(language, "childLabel", values);
+      entry.querySelector("input").setAttribute("aria-label", translate(language, "childAgeLabel", values));
+      entry.querySelector("select").setAttribute("aria-label", translate(language, "childGenderLabel", values));
+      entry.querySelector("button")?.setAttribute("aria-label", translate(language, "removeChildLabel", values));
+    });
     const children = [...childAgeList.querySelectorAll(".child-age-entry")].map((entry) => ({
       age: entry.querySelector('input[name="childAge"]').value,
       gender: entry.querySelector('select[name="childGender"]').value,
     })).filter((child) => child.age !== "" || child.gender);
     const languages = [...form.querySelectorAll('input[name="language"]:checked')].map((input) => input.value);
     const ageRange = form.querySelector('select[name="age"]')?.value;
-    const ageSummary = children.map((child) => [child.age !== "" ? `${child.age} J.` : "", child.gender].filter(Boolean).join(" · ")).join(", ");
-    form.querySelector("[data-child-summary]").textContent = [ageSummary, ageRange ? `${ageRange.replace("-", "–")} Jahre` : ""]
-      .filter(Boolean).join(" · ") || "Alle Altersgruppen";
-    form.querySelector("[data-language-summary]").textContent = languages.length ? languages.join(", ") : "Alle Sprachen";
-    const format = (value) => dateFormatter.format(new Date(`${value}T12:00:00`));
+    const ageSummary = children.map((child) => [child.age !== "" ? translate(language, "yearsShort", { age: child.age }) : "", translateChoice(language, child.gender)].filter(Boolean).join(" · ")).join(", ");
+    const [minAge, maxAge] = ageRange?.split("-") ?? [];
+    form.querySelector("[data-child-summary]").textContent = [ageSummary, ageRange ? translate(language, "ageRange", { min: minAge, max: maxAge }) : ""]
+      .filter(Boolean).join(" · ") || translate(language, "anyAges");
+    form.querySelector("[data-language-summary]").textContent = languages.length ? languages.map((value) => translateChoice(language, value)).join(", ") : translate(language, "anyLanguages");
+    const format = (value) => new Intl.DateTimeFormat(localeForLanguage(language), { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${value}T12:00:00`));
     form.querySelector("[data-date-summary]").textContent = start.value && end.value
       ? `${format(start.value)} – ${format(end.value)}`
-      : start.value ? `Ab ${format(start.value)}` : end.value ? `Bis ${format(end.value)}` : "Zeitraum auswählen";
+      : start.value ? translate(language, "dateFrom", { date: format(start.value) }) : end.value ? translate(language, "dateUntil", { date: format(end.value) }) : translate(language, "selectDates");
   }
 
   function showSuggestions() {
@@ -917,12 +956,6 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
     const removeButton = event.target.closest('[data-action="remove-child-age"]');
     if (removeButton) {
       removeButton.closest(".child-age-entry").remove();
-      childAgeList.querySelectorAll(".child-age-entry").forEach((entry, index) => {
-        entry.querySelector(".child-entry-label").textContent = `Kind ${index + 1}`;
-        entry.querySelector("input").setAttribute("aria-label", `Alter von Kind ${index + 1}`);
-        entry.querySelector("select").setAttribute("aria-label", `Geschlecht von Kind ${index + 1} (optional)`);
-        entry.querySelector("button")?.setAttribute("aria-label", `Kind ${index + 1} entfernen`);
-      });
       form.querySelector('[data-action="add-child-age"]').disabled = false;
       form.querySelector('[data-action="add-child-age"]').focus();
       updateSummary();
@@ -931,7 +964,7 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
     if (done) {
       const picker = done.closest("details");
       if (picker.classList.contains("date-picker") && start.value && end.value && end.value < start.value) {
-        form.querySelector("#landing-date-error").textContent = "Die Abreise muss nach der Anreise liegen.";
+        showTranslatedText(form.querySelector("#landing-date-error"), "dateInvalid");
         form.querySelector("#landing-date-error").hidden = false;
         end.focus();
         return;
@@ -1029,6 +1062,10 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
   renderCalendar();
   updateSummary();
   return {
+    updateLanguage() {
+      renderCalendar();
+      updateSummary();
+    },
     setDestinations(families) {
       values = [...new Set(families.flatMap((family) => [family.destination, family.region]).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
       if (!suggestions.hidden) showSuggestions();
@@ -1062,6 +1099,7 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
 function mountPage() {
   cleanupPage();
   cleanupPage = () => {};
+  updatePageLanguage = () => {};
   const path = location.pathname.replace(/\/+$/, "") || "/";
   const page = path === "/search"
     ? searchPage()
@@ -1074,6 +1112,7 @@ function mountPage() {
         : landingPage();
   app.innerHTML = `${header()}${page}${footer()}`;
   updateAuthNavigation();
+  translateElements(app, language);
 
   const searchFormElement = document.querySelector("#trip-search-form");
   const searchControls = searchFormElement ? setupLandingSearch(searchFormElement) : null;
@@ -1101,7 +1140,7 @@ function mountPage() {
               ${trip.children.map((child) => `
                 <span class="planned-trip-child">
                   ${icon(child.gender === "Mädchen" ? "gender-female" : child.gender === "Junge" ? "gender-male" : "person")}
-                  <span>${child.gender ? `${escapeHTML(child.gender)} · ` : ""}${escapeHTML(child.age)} J.</span>
+                  <span>${child.gender ? `${escapeHTML(translateChoice(language, child.gender))} · ` : ""}${escapeHTML(translate(language, "yearsShort", { age: child.age }))}</span>
                 </span>`).join("")}
             </div>
             ${tripDetailsMarkup(trip)}
@@ -1109,6 +1148,7 @@ function mountPage() {
         </article>`).join(""));
       hydrateTripPhotos(getSupabase(), grid);
     };
+    updatePageLanguage = () => { searchControls?.updateLanguage(); renderPlannedTrips(); };
     const loadTrips = async () => {
       const currentRequest = ++requestId;
       try {
@@ -1175,10 +1215,12 @@ function mountPage() {
       releaseTripPhotos(results);
       results.innerHTML = page.items.map((family) => familyCard(family, favorites, contacted, personalReady)).join("");
       hydrateTripPhotos(getSupabase(), results);
-      pagination.innerHTML = paginationMarkup(page.current, page.pages, "Familienseiten");
-      count.textContent = `${matches.length} ${matches.length === 1 ? "Familie" : "Familien"} passend zu eurer Suche`;
+      pagination.innerHTML = paginationMarkup(page.current, page.pages, translate(language, "familyPages"), language);
+      delete count.dataset.i18n;
+      count.textContent = translate(language, matches.length === 1 ? "resultsOne" : "resultsOther", { count: matches.length });
       empty.classList.toggle("d-none", matches.length > 0);
     };
+    updatePageLanguage = () => { searchControls?.updateLanguage(); renderFamilies(); };
     (async () => {
       try {
         const { data, error } = await getSupabase().auth.getUser();
@@ -1199,11 +1241,11 @@ function mountPage() {
       } catch (error) {
         console.error("Persönliche Markierungen konnten nicht geladen werden:", error);
         if (!results.isConnected) return;
-        personalError.textContent = "Favoriten und Kontaktstatus konnten nicht geladen werden. Bitte lade die Seite erneut.";
+        showTranslatedText(personalError, "personalLoadFailed");
         personalError.hidden = false;
       }
     })();
-    count.textContent = "Familien werden geladen …";
+    showTranslatedText(count, "loadingFamilies");
     loadPublicFamilies().then((families) => {
       if (!results.isConnected) return;
       loadedFamilies = families;
@@ -1213,7 +1255,8 @@ function mountPage() {
       if (!results.isConnected) return;
       console.error("Familien konnten nicht geladen werden:", error);
       count.textContent = "";
-      errorMessage.textContent = "Die Familien konnten nicht geladen werden. Bitte prüfe deine Verbindung und versuche es erneut.";
+      delete count.dataset.i18n;
+      showTranslatedText(errorMessage, "familiesLoadFailed");
       errorMessage.hidden = false;
     });
     loadDestinationCatalog().then(() => {
@@ -1231,7 +1274,10 @@ function mountPage() {
         selectedFamily = loadedFamilies.find((family) => family.trip_reference === contact.dataset.contact);
         if (!selectedFamily) return;
         contactForm.reset();
-        contactForm.elements.namedItem("message").value = `Hallo, ihr reist vom ${tripDateRange(selectedFamily.start_date, selectedFamily.end_date)} nach ${selectedFamily.destination}. Wir würden uns freuen, euch kennenzulernen. Habt ihr Lust, dass unsere Kinder dort gemeinsam spielen?`;
+        contactForm.elements.namedItem("message").value = translate(language, "defaultMessage", {
+          dates: tripDateRange(selectedFamily.start_date, selectedFamily.end_date),
+          destination: selectedFamily.destination,
+        });
         contactStatus.hidden = true;
         contactDialog.showModal();
         contactForm.elements.namedItem("message").focus();
@@ -1250,7 +1296,7 @@ function mountPage() {
         renderFamilies();
       } catch (error) {
         console.error("Favorit konnte nicht gespeichert werden:", error);
-        personalError.textContent = "Der Favorit konnte nicht gespeichert werden. Bitte versuche es erneut.";
+        showTranslatedText(personalError, "favoriteFailed");
         personalError.hidden = false;
         if (button.isConnected) button.disabled = false;
       }
@@ -1263,14 +1309,14 @@ function mountPage() {
       if (!selectedFamily || !contactForm.reportValidity()) return;
       const message = contactForm.elements.namedItem("message").value.trim();
       if (!message) {
-        contactStatus.textContent = "Bitte gib eine Nachricht ein.";
+        showTranslatedText(contactStatus, "enterMessage");
         contactStatus.hidden = false;
         return;
       }
       const submit = contactForm.querySelector('button[type="submit"]');
       submit.disabled = true;
       const tripReference = selectedFamily.trip_reference;
-      contactStatus.textContent = "Kontaktanfrage wird gespeichert …";
+      showTranslatedText(contactStatus, "savingRequest");
       contactStatus.hidden = false;
       try {
         const sent = await requestFamilyContact(getSupabase(), tripReference, message,
@@ -1282,7 +1328,9 @@ function mountPage() {
         renderFamilies();
       } catch (error) {
         console.error("Kontaktanfrage fehlgeschlagen:", error);
-        if (contactForm.isConnected) contactStatus.textContent = contactErrorMessage(error);
+        if (contactForm.isConnected) {
+          showTranslatedText(contactStatus, error.code === "23505" ? "contactDuplicate" : error.code === "42501" ? "contactUnavailable" : "contactFailed");
+        }
       } finally {
         if (contactForm.isConnected) submit.disabled = false;
       }
@@ -1316,6 +1364,7 @@ function mountPage() {
     const endInput = form.elements.namedItem("end");
     const tripSearch = setupLandingSearch(form, { fromQuery: false, trip: true });
     let myTrips = [];
+    let tripsLoaded = false;
     let tripPage = 1;
     let contactPage = 1;
     let contactedFamilies = [];
@@ -1359,7 +1408,7 @@ function mountPage() {
       releaseTripPhotos(list);
       list.innerHTML = renderMyTrips(page.items);
       hydrateTripPhotos(getSupabase(), list);
-      tripsPagination.innerHTML = paginationMarkup(page.current, page.pages, "Reiseseiten");
+      tripsPagination.innerHTML = paginationMarkup(page.current, page.pages, translate(language, "tripPages"), language);
     };
     const renderContacted = () => {
       const page = paginate(contactedFamilies, contactPage);
@@ -1369,25 +1418,25 @@ function mountPage() {
         const available = family.destination !== null;
         const location = [family.region, family.destination, family.country].filter(Boolean).join(", ");
         const children = (family.children ?? []).map((child) =>
-          `${child.age} Jahre${child.gender ? ` (${child.gender})` : ""}`).join(", ");
-        const contactedDate = new Intl.DateTimeFormat("de-DE", {
+          `${translate(language, "yearCount", { count: child.age })}${child.gender ? ` (${translateChoice(language, child.gender)})` : ""}`).join(", ");
+        const contactedDate = new Intl.DateTimeFormat(localeForLanguage(language), {
           day: "numeric", month: "long", year: "numeric",
         }).format(new Date(family.contacted_at));
         return `<article class="contacted-family">
           <figure class="destination-photo contacted-family-photo">${photoMarkup(family, "")}</figure>
           <div class="contacted-family-details">
-            <strong>Familie${available ? ` in ${escapeHTML(family.destination)}` : " – Reise nicht mehr öffentlich"}</strong>
+            <strong>${translate(language, "family")}${available ? ` – ${escapeHTML(family.destination)}` : ` – ${translate(language, "notPublic")}`}</strong>
             ${available ? `
               <p>${icon("geo-alt-fill")} ${escapeHTML(location)}</p>
               <p>${icon("calendar3")} ${escapeHTML(tripDateRange(family.start_date, family.end_date))}</p>
-              <p>${icon("people-fill")} ${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</p>
-              <p>${icon("globe2")} ${escapeHTML(family.languages?.join(", ") || "Keine Sprachen angegeben")}</p>` : ""}
+              <p>${icon("people-fill")} ${family.children.length ? `${translate(language, family.children.length === 1 ? "childCountOne" : "childCountOther", { count: family.children.length })}: ${escapeHTML(children)}` : translate(language, "noChildren")}</p>
+              <p>${icon("globe2")} ${escapeHTML(family.languages?.map((value) => translateChoice(language, value)).join(", ") || translate(language, "noLanguages"))}</p>` : ""}
             ${available ? tripDetailsMarkup(family) : ""}
           </div>
-          <span class="contacted-label">Kontaktiert am ${escapeHTML(contactedDate)}</span>
+          <span class="contacted-label">${escapeHTML(translate(language, "contactedOn", { date: contactedDate }))}</span>
         </article>`;
-      }).join("") : "<p>Du hast noch keine Familien kontaktiert.</p>";
-      contactedPagination.innerHTML = paginationMarkup(page.current, page.pages, "Seiten kontaktierter Familien");
+      }).join("") : `<p>${translate(language, "noContacts")}</p>`;
+      contactedPagination.innerHTML = paginationMarkup(page.current, page.pages, translate(language, "contactedPages"), language);
       hydrateTripPhotos(getSupabase(), contactedList);
     };
     const renderReceived = () => {
@@ -1396,17 +1445,24 @@ function mountPage() {
       receivedList.innerHTML = page.items.length ? page.items.map((request) => {
         const trip = myTrips.find((item) => item.id === request.trip_id);
         return `<article class="received-contact">
-          <strong>Anfrage für ${escapeHTML(trip?.destination ?? "deine Reise")}</strong>
-          <p>${escapeHTML(request.message ?? "Diese frühere Anfrage enthält keine Nachricht.")}</p>
-          ${request.interests.length ? `<p>Interessen: ${escapeHTML(request.interests.join(", "))}</p>` : ""}
+          <strong>${escapeHTML(translate(language, "requestFor", { trip: trip?.destination ?? translate(language, "yourTrip") }))}</strong>
+          <p>${escapeHTML(request.message ?? translate(language, "noRequestMessage"))}</p>
+          ${request.interests.length ? `<p>${translate(language, "interests")} ${escapeHTML(request.interests.map((value) => translateChoice(language, value)).join(", "))}</p>` : ""}
         </article>`;
-      }).join("") : "<p>Du hast noch keine Kontaktanfragen erhalten.</p>";
-      receivedPagination.innerHTML = paginationMarkup(page.current, page.pages, "Seiten eingegangener Kontaktanfragen");
+      }).join("") : `<p>${translate(language, "noRequests")}</p>`;
+      receivedPagination.innerHTML = paginationMarkup(page.current, page.pages, translate(language, "receivedPages"), language);
+    };
+    updatePageLanguage = () => {
+      tripSearch.updateLanguage();
+      if (tripsLoaded) renderTrips();
+      if (contactedLoaded) renderContacted();
+      if (receivedLoaded) renderReceived();
     };
     async function refreshTrips() {
       const trips = await fetchOwnTrips(getSupabase(), userId);
       if (!list.isConnected) return;
       myTrips = trips;
+      tripsLoaded = true;
       renderTrips();
       if (receivedLoaded) {
         receivedContacts = receivedContacts.filter((request) => myTrips.some((trip) => trip.id === request.trip_id));
@@ -1419,7 +1475,8 @@ function mountPage() {
         if (error && error.name !== "AuthSessionMissingError") throw error;
         if (!list.isConnected) return;
         if (!data.user) {
-          list.innerHTML = '<div class="my-trips-empty"><h2>Bitte melde dich an</h2><p>Deine Reisen sind nur für dich sichtbar.</p><a class="btn btn-primary" href="/login">Anmelden</a></div>';
+          list.innerHTML = '<div class="my-trips-empty"><h2 data-i18n="signInRequired"></h2><p data-i18n="privateTrips"></p><a class="btn btn-primary" href="/login" data-i18n="login"></a></div>';
+          translateElements(list, language);
           contactedList.closest("section").hidden = true;
           receivedList.closest("section").hidden = true;
           return;
@@ -1434,7 +1491,8 @@ function mountPage() {
         } catch (error) {
           console.error("Kontaktierte Familien konnten nicht geladen werden:", error);
           if (!list.isConnected) return;
-          contactedList.innerHTML = '<p role="alert">Kontaktierte Familien konnten nicht geladen werden. Bitte lade die Seite erneut.</p>';
+          contactedList.innerHTML = '<p role="alert" data-i18n="contactsLoadFailed"></p>';
+          translateElements(contactedList, language);
         }
         try {
           receivedContacts = await fetchReceivedContacts(getSupabase(), userId);
@@ -1444,7 +1502,8 @@ function mountPage() {
         } catch (error) {
           console.error("Eingegangene Kontaktanfragen konnten nicht geladen werden:", error);
           if (!list.isConnected) return;
-          receivedList.innerHTML = '<p role="alert">Eingegangene Kontaktanfragen konnten nicht geladen werden. Bitte lade die Seite erneut.</p>';
+          receivedList.innerHTML = '<p role="alert" data-i18n="receivedLoadFailed"></p>';
+          translateElements(receivedList, language);
         }
         try {
           destinations = destinationSuggestions(await loadDestinationCatalog());
@@ -1456,13 +1515,13 @@ function mountPage() {
           console.error("Reisezielvorschläge konnten nicht geladen werden:", error);
           if (!list.isConnected) return;
           const notice = form.querySelector("#trip-destinations-notice");
-          notice.textContent = "Reisezielvorschläge sind derzeit nicht verfügbar. Du kannst dein Reiseziel selbst eingeben.";
+          showTranslatedText(notice, "destinationUnavailable");
           notice.hidden = false;
         }
         if (list.isConnected) createButtons.forEach((button) => { button.disabled = false; });
       } catch (error) {
         console.error("Reisen konnten nicht geladen werden:", error);
-        if (list.isConnected) showListError("Deine Reisen konnten nicht geladen werden. Bitte lade die Seite erneut.");
+        if (list.isConnected) showListError(translate(language, "tripsLoadFailed"));
       }
     })();
 
@@ -1491,8 +1550,7 @@ function mountPage() {
         form.elements.namedItem("start").value = trip?.start ?? "";
         form.elements.namedItem("end").value = trip?.end ?? "";
         tripSearch.setTrip(trip);
-        document.querySelector("#trip-dialog-title").textContent =
-          trip ? "Reise bearbeiten" : "Neue Reise erstellen";
+        showTranslatedText(document.querySelector("#trip-dialog-title"), trip ? "editTrip" : "newTrip");
         document.querySelector("#trip-form-message").hidden = true;
         destinationInput.setCustomValidity("");
         endInput.setCustomValidity("");
@@ -1501,7 +1559,7 @@ function mountPage() {
         return;
       }
       if (action === "remove") {
-        if (!window.confirm("Möchtest du diese Reise wirklich löschen? Zugehörige Kontaktanfragen werden ebenfalls gelöscht.")) return;
+        if (!window.confirm(translate(language, "removeConfirm"))) return;
         const trip = myTrips.find((item) => item.id === button.dataset.tripId);
         button.disabled = true;
         try {
@@ -1510,7 +1568,7 @@ function mountPage() {
             try { await removeTripPhoto(getSupabase(), trip.photo_path); }
             catch (error) {
               console.error("Reisebild konnte nicht gelöscht werden:", error);
-              window.alert("Die Reise wurde gelöscht, ihr Foto konnte jedoch nicht aus dem Speicher entfernt werden. Bitte wende dich an den Support.");
+              window.alert(translate(language, "removePhotoFailed"));
             }
           }
           await refreshTrips();
@@ -1518,7 +1576,7 @@ function mountPage() {
           console.error("Reise konnte nicht entfernt werden:", error);
           if (list.isConnected) {
             button.disabled = false;
-            showListError("Die Reise konnte nicht entfernt oder die Übersicht nicht aktualisiert werden. Bitte lade die Seite erneut.");
+            showListError(translate(language, "removeTripFailed"));
           }
         }
       }
@@ -1547,7 +1605,7 @@ function mountPage() {
       } catch (error) {
         console.error("Sichtbarkeit konnte nicht gespeichert werden:", error);
         if (input.isConnected) input.checked = trip.visible;
-        if (list.isConnected) window.alert("Die Sichtbarkeit konnte nicht gespeichert werden. Bitte versuche es erneut.");
+        if (list.isConnected) window.alert(translate(language, "visibilityFailed"));
       } finally {
         if (input.isConnected) input.disabled = false;
       }
@@ -1570,14 +1628,14 @@ function mountPage() {
       if (visible || (trip.visible && !trip.detailsShared)) {
         pendingVisibility = { trip, visible, input };
         input.disabled = true;
-        visibilityTitle.textContent = visible ? "Reise für Familien freigeben?" : "Sichtbarkeit ausschalten?";
+        showTranslatedText(visibilityTitle, visible ? "shareTitle" : "unshareTitle");
         visibilityDescription.innerHTML = visible
-          ? `<p>Wenn du deine Reise freigibst, können andere Familien diese Angaben in der Suche sehen:</p>
-             <ul><li>Reiseziel und Reisezeitraum</li><li>Sprachen sowie Alter und Geschlecht der Kinder</li><li>Beschreibung, Interessen und eigenes Reisefoto, falls angegeben</li></ul>
-             <p class="trip-visibility-privacy">${icon("shield-check")} Du kannst die Freigabe jederzeit wieder ausschalten.</p>`
-          : `<p>Reiseziel und Zeitraum können derzeit öffentlich sein. Familienangaben sind nicht für die Suche freigegeben.</p>
-             <p>Möchtest du die Sichtbarkeit dieser Reise ausschalten?</p>`;
-        visibilityConfirm.textContent = visible ? "Reise freigeben" : "Sichtbarkeit ausschalten";
+          ? `<p data-i18n="shareIntro"></p>
+             <ul><li data-i18n="shareDestination"></li><li data-i18n="shareFamily"></li><li data-i18n="shareDetails"></li></ul>
+             <p class="trip-visibility-privacy">${icon("shield-check")} <span data-i18n="shareRevoke"></span></p>`
+          : `<p data-i18n="unshareIntro"></p><p data-i18n="unshareQuestion"></p>`;
+        translateElements(visibilityDescription, language);
+        showTranslatedText(visibilityConfirm, visible ? "shareAction" : "unshareTitle");
         visibilityModal.show();
         return;
       }
@@ -1588,7 +1646,7 @@ function mountPage() {
       event.preventDefault();
       endInput.setCustomValidity(
         startInput.value && endInput.value && endInput.value < startInput.value
-          ? "Das Abreisedatum muss nach der Anreise liegen."
+          ? translate(language, "dateInvalid")
           : ""
       );
       if (!form.reportValidity()) return;
@@ -1601,14 +1659,14 @@ function mountPage() {
       const languages = formData.getAll("language").map(String);
       const message = document.querySelector("#trip-form-message");
       if (!children.length || children.some((child) => child.age === "")) {
-        message.textContent = "Bitte gib für mindestens ein Kind und für jede ausgewählte Angabe ein Alter ein.";
+        showTranslatedText(message, "childrenRequired");
         message.hidden = false;
         form.querySelector(".child-picker").open = true;
         form.querySelector('input[name="childAge"]')?.focus();
         return;
       }
       if (!languages.length) {
-        message.textContent = "Bitte wähle mindestens eine Sprache aus.";
+        showTranslatedText(message, "languageRequired");
         message.hidden = false;
         form.querySelector(".language-picker").open = true;
         form.querySelector('input[name="language"]').focus();
@@ -1617,7 +1675,7 @@ function mountPage() {
       const id = formData.get("id").toString();
       const existingTrip = myTrips.find((trip) => trip.id === id);
       if (id && !existingTrip) {
-        message.textContent = "Die Reise wurde nicht gefunden. Bitte lade die Seite erneut.";
+        showTranslatedText(message, "tripNotFound");
         message.hidden = false;
         return;
       }
@@ -1628,13 +1686,13 @@ function mountPage() {
         ...formData.get("customInterests").toString().split(",").map((value) => value.trim()).filter(Boolean),
       ])];
       if (interests.length > 20 || interests.some((interest) => interest.length > 50 || /[\u0000-\u001f\u007f]/.test(interest))) {
-        message.textContent = "Bitte wähle höchstens 20 Interessen mit jeweils maximal 50 Zeichen.";
+        showTranslatedText(message, "interestsInvalid");
         message.hidden = false;
         form.elements.namedItem("customInterests").focus();
         return;
       }
       if (!destination) {
-        message.textContent = "Bitte gib ein Reiseziel ein.";
+        showTranslatedText(message, "destinationRequired");
         message.hidden = false;
         return;
       }
@@ -1656,10 +1714,10 @@ function mountPage() {
         languages,
       };
 
-      if (existingTrip?.visible && existingTrip.detailsShared && !window.confirm("Diese Reise ist öffentlich. Änderungen an Reiseziel, Zeitraum, Sprachen, Kinderangaben, Beschreibung, Interessen und Foto sind ebenfalls öffentlich sichtbar. Möchtest du sie speichern?")) return;
+      if (existingTrip?.visible && existingTrip.detailsShared && !window.confirm(translate(language, "publicChangeConfirm"))) return;
       const submit = form.querySelector('button[type="submit"]');
       submit.disabled = true;
-      message.textContent = "Reise wird gespeichert …";
+      showTranslatedText(message, "savingTrip");
       message.hidden = false;
       let uploadedPhoto = null;
       let saved = false;
@@ -1677,7 +1735,7 @@ function mountPage() {
           try { await removeTripPhoto(getSupabase(), existingTrip.photo_path); }
           catch (error) {
             console.error("Vorheriges Reisebild konnte nicht entfernt werden:", error);
-            window.alert("Die Reise wurde gespeichert, das vorherige Foto konnte jedoch nicht aus dem Speicher entfernt werden. Bitte wende dich an den Support.");
+            window.alert(translate(language, "oldPhotoFailed"));
           }
         }
         dialog.close();
@@ -1688,15 +1746,16 @@ function mountPage() {
           try { await removeTripPhoto(getSupabase(), uploadedPhoto); }
           catch (cleanupError) {
             console.error("Hochgeladenes Reisebild konnte nicht bereinigt werden:", cleanupError);
-            window.alert("Das hochgeladene Foto konnte nicht automatisch entfernt werden. Bitte prüfe die Reise und wende dich gegebenenfalls an den Support.");
+            window.alert(translate(language, "cleanupPhotoFailed"));
           }
         }
         if (dialog.open) {
-          message.textContent = error instanceof Error && /JPEG|Bild/.test(error.message)
-            ? error.message : "Die Reise konnte nicht gespeichert werden. Bitte versuche es erneut.";
+          delete message.dataset.i18n;
+          message.textContent = error instanceof Error && /JPEG|Bild/.test(error.message) && language === "de"
+            ? error.message : translate(language, "saveTripFailed");
           message.hidden = false;
         } else if (list.isConnected) {
-          showListError("Die Reise wurde gespeichert, aber die Übersicht konnte nicht aktualisiert werden. Bitte lade die Seite erneut.");
+          showListError(translate(language, "refreshTripFailed"));
         }
       } finally {
         submit.disabled = false;
@@ -1711,7 +1770,7 @@ function mountPage() {
     const end = form.elements.namedItem("end");
     end.setCustomValidity(
       start.value && end.value && end.value < start.value
-        ? "Die Abreise muss nach der Anreise liegen."
+        ? translate(language, "dateInvalid")
         : ""
     );
     if (!end.validity.valid) {
@@ -1754,11 +1813,11 @@ function mountPage() {
     const data = new FormData(form);
     const name = isRegistration ? data.get("name").trim() : "";
     if (isRegistration && !name) {
-      showAuthNotice("Bitte gib deinen Namen ein.");
+      showAuthKey("enterName");
       return;
     }
     submit.disabled = true;
-    showAuthNotice(isRegistration ? "Konto wird erstellt …" : "Anmeldung läuft …");
+    showAuthKey(isRegistration ? "creatingAccount" : "loggingIn");
     try {
       const client = getSupabase();
       setAuthPersistence(isRegistration || form.querySelector("#remember").checked);
@@ -1769,20 +1828,20 @@ function mountPage() {
       if (!result.session) {
         if (!isRegistration) throw new Error("Keine Sitzung erhalten.");
         form.reset();
-        showAuthNotice("Falls die Registrierung möglich ist, erhältst du eine E-Mail zur Bestätigung. Bitte prüfe auch deinen Spam-Ordner und melde dich danach an.");
+        showAuthKey("registrationNotice");
         return;
       }
       try {
         await ensureProfile(client, result.user);
       } catch (error) {
         console.error("Profil konnte nicht eingerichtet werden:", error);
-        showAuthNotice("Du bist angemeldet, aber dein Profil konnte nicht eingerichtet werden. Bitte versuche es erneut oder wende dich an den Support.");
+        showAuthKey("profileFailed");
         return;
       }
       if (form.isConnected) navigate("/search");
     } catch (error) {
       console.error("Authentifizierung fehlgeschlagen:", error);
-      if (form.isConnected) showAuthNotice(authErrorMessage(error));
+      if (form.isConnected) showAuthKey(authErrorKey(error));
     } finally {
       if (form.isConnected) submit.disabled = false;
     }
@@ -1791,11 +1850,25 @@ function mountPage() {
   document.querySelector('[data-action="reset-password"]')?.addEventListener("click", (event) => {
     event.preventDefault();
     const notice = document.querySelector("#auth-notice");
-    notice.textContent = "Das Zurücksetzen des Passworts ist im Prototyp noch nicht verfügbar.";
+    showTranslatedText(notice, "resetUnavailable");
     notice.hidden = false;
   });
 
 }
+
+document.addEventListener("change", (event) => {
+  if (event.target.id !== "site-language") return;
+  const selected = supportedLanguage(event.target.value);
+  if (!selected) return;
+  language = selected;
+  try {
+    localStorage.setItem(languageStorageKey, language);
+  } catch (error) {
+    console.warn("Die Sprachauswahl konnte nicht gespeichert werden:", error);
+  }
+  translateElements(app, language);
+  updatePageLanguage();
+});
 
 document.addEventListener("click", (event) => {
   const signOut = event.target.closest('[data-action="sign-out"]');
@@ -1810,7 +1883,7 @@ document.addEventListener("click", (event) => {
     }).catch((error) => {
       console.error("Abmeldung fehlgeschlagen:", error);
       const message = document.querySelector("#auth-navigation-error");
-      message.textContent = "Die Abmeldung ist fehlgeschlagen. Bitte versuche es erneut.";
+      showTranslatedText(message, "logoutFailed");
       message.hidden = false;
       if (signOut.isConnected) signOut.disabled = false;
     });

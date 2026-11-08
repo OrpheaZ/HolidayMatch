@@ -10,4 +10,6 @@ test("Seitengrenzen bei 30 Einträgen und nach dem Entfernen", () => {
   assert.equal(paginate(items.slice(0, 30), 3).current, 1);
   assert.equal(paginationMarkup(1, 1, "Reisen"), "");
   assert.match(paginationMarkup(1, 3, "Reisen"), /Seite 1 von 3/);
+  assert.match(paginationMarkup(2, 3, "Trips", "en"), /Page 2 of 3/);
+  assert.match(paginationMarkup(2, 3, "Пътувания", "bg"), /Страница 2 от 3/);
 });
