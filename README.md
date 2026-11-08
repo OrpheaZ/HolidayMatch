@@ -98,7 +98,8 @@ trip and family details are shared. Public results include the description,
 interests and photo when consent is active. Without a photo, the destination
 image or a neutral placeholder is used. Sharing a photo requires the owner to
 have permission to share it.
-Trip cards show interests directly and open a details dialog with the available
+Landing-page trip cards show interests in the details dialog; other trip cards
+show them directly. The details dialog displays the available
 trip information. Other families' shared trips offer contact from that dialog;
 own trips do not offer self-contact, and previously contacted trips show their
 contact status instead.

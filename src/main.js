@@ -61,11 +61,11 @@ function photoMarkup(location, imageClass) {
 }
 const tripInterests = ["Strand", "Schwimmen", "Spielplatz", "Sandburgen", "Wassersport", "Wandern", "Natur", "Tiere", "Fahrradfahren", "Ausflüge", "Kultur", "Essen", "Brettspiele", "Basteln", "Freizeitpark", "Sport", "Entspannung", "Camping"];
 
-function tripDetailsMarkup(trip, kind = "public") {
+function tripDetailsMarkup(trip, kind = "public", showInterests = true) {
   const interests = trip.interests ?? [];
   const reference = kind === "own" ? trip.id : trip.trip_reference;
   return `<div class="trip-extra-details">
-    ${interests.length ? `<p><strong>${translate(language, "interests")}</strong> ${escapeHTML(interests.map((value) => translateChoice(language, value)).join(", "))}</p>` : ""}
+    ${showInterests && interests.length ? `<p><strong>${translate(language, "interests")}</strong> ${escapeHTML(interests.map((value) => translateChoice(language, value)).join(", "))}</p>` : ""}
     <button class="trip-details-link" type="button" data-trip-details="${escapeHTML(reference)}" data-trip-kind="${kind}">${translate(language, "tripDetails")}</button>
   </div>`;
 }
@@ -133,9 +133,10 @@ function childEntry(index, trip = false) {
   return `<div class="child-age-entry${trip ? "" : " child-search-entry"}">
     <span class="child-entry-label">${translate(language, "childLabel", { number: index })}</span>
     ${trip ? `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
-    <div class="child-entry-field"><label><span><span data-i18n="gender">${translate(language, "gender")}</span> <span class="child-field-optional" data-i18n="optionalSuffix">${translate(language, "optionalSuffix")}</span></span>${gender}</label><button class="child-gender-clear" type="button" data-action="clear-child-gender" data-i18n="clearGender" hidden>${translate(language, "clearGender")}</button></div>` : `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
-    <div class="child-entry-field"><label><span data-i18n="gender">${translate(language, "gender")}</span>${gender}</label><button class="child-gender-clear" type="button" data-action="clear-child-gender" data-i18n="clearGender" hidden>${translate(language, "clearGender")}</button></div>`}
+    <div class="child-entry-field"><label><span><span data-i18n="gender">${translate(language, "gender")}</span> <span class="child-field-optional" data-i18n="optionalSuffix">${translate(language, "optionalSuffix")}</span></span>${gender}</label></div>` : `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
+    <div class="child-entry-field"><label><span data-i18n="gender">${translate(language, "gender")}</span>${gender}</label></div>`}
     <button type="button" data-action="remove-child-age" aria-label="${translate(language, "removeChildLabel", { number: index })}">${icon("x-lg")}</button>
+    <button class="child-gender-clear" type="button" data-action="clear-child-gender" data-i18n="clearGender" hidden>${translate(language, "clearGender")}</button>
   </div>`;
 }
 
@@ -288,7 +289,9 @@ function landingPage() {
             <h2 id="planned-trips-title" data-i18n="plannedTitle">Schon geplante Reisen – sei dabei!</h2>
           </div>
           <div class="planned-trips-grid">
-            <p class="planned-trips-message" id="planned-trips-message" role="status">Reisen werden geladen …</p>
+            <div class="planned-trips-cards">
+              <p class="planned-trips-message" id="planned-trips-message" role="status">Reisen werden geladen …</p>
+            </div>
             <aside class="planned-trips-cta">
               <span class="planned-trips-cta-icon">${icon("compass")}</span>
               <h3 data-i18n="discoverTrips">Weitere Reisen entdecken</h3>
@@ -1291,7 +1294,7 @@ function mountPage() {
 
   if (path === "/") {
     const grid = document.querySelector(".planned-trips-grid");
-    const cta = grid.querySelector(".planned-trips-cta");
+    const cards = grid.querySelector(".planned-trips-cards");
     let plannedTrips = null;
     const landingContacted = new Set();
     hasContacted = (id) => landingContacted.has(id);
@@ -1303,10 +1306,10 @@ function mountPage() {
       releaseTripPhotos(grid);
       grid.querySelectorAll(".planned-trip-card, .planned-trips-message").forEach((item) => item.remove());
       if (!plannedTrips.length) {
-        cta.insertAdjacentHTML("beforebegin", '<p class="planned-trips-message" role="status">Aktuell sind keine bevorstehenden Reisen für die Familiensuche freigegeben.</p>');
+        cards.insertAdjacentHTML("beforeend", '<p class="planned-trips-message" role="status">Aktuell sind keine bevorstehenden Reisen für die Familiensuche freigegeben.</p>');
         return;
       }
-      cta.insertAdjacentHTML("beforebegin", plannedTrips.map((trip) => `
+      cards.insertAdjacentHTML("beforeend", plannedTrips.map((trip) => `
         <article class="planned-trip-card">
           <figure class="destination-photo planned-trip-photo">${photoMarkup(trip, "planned-trip-image")}</figure>
           <div class="planned-trip-content">
@@ -1319,7 +1322,7 @@ function mountPage() {
                   <span>${child.gender ? `${escapeHTML(translateChoice(language, child.gender))} · ` : ""}${escapeHTML(translate(language, "yearsShort", { age: child.age }))}</span>
                 </span>`).join("")}
             </div>
-            ${tripDetailsMarkup(trip)}
+            ${tripDetailsMarkup(trip, "public", false)}
           </div>
         </article>`).join(""));
       hydrateTripPhotos(getSupabase(), grid);
@@ -1340,7 +1343,7 @@ function mountPage() {
         console.error("Geplante Reisen konnten nicht geladen werden:", error);
         plannedTrips = null;
         grid.querySelectorAll(".planned-trip-card, .planned-trips-message").forEach((item) => item.remove());
-        cta.insertAdjacentHTML("beforebegin", '<p class="planned-trips-message" role="alert">Die Reisen konnten nicht geladen werden. Bitte versuche es später erneut.</p>');
+        cards.insertAdjacentHTML("beforeend", '<p class="planned-trips-message" role="alert">Die Reisen konnten nicht geladen werden. Bitte versuche es später erneut.</p>');
       }
     };
     document.addEventListener("landing-auth-changed", loadTrips);
