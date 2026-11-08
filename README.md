@@ -93,6 +93,16 @@ page; replies and notifications are not yet implemented. Password
 recovery remains a prototype. Test RLS and consent with separate accounts before
 using real family data.
 
+### Netlify deployment
+
+Netlify builds with `npm run build` and publishes `dist`. The included
+`public/_redirects` is included in the build and redirects application routes to
+`index.html` so direct links and page refreshes work. Set `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_PUBLISHABLE_KEY` in Netlify's environment variables for the
+intended Supabase project; never use a service-role key. Vite embeds these
+values at build time. Apply the Supabase migrations to that project and add
+the deployed site URL and `/login` redirect to its Auth URL allow list.
+
 ### Development demo data
 
 Destination thumbnails are AI-generated illustrations, not necessarily
