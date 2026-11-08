@@ -769,6 +769,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .shared-search .child-age-entry input[type="number"] { flex: 1 1 55px; width: 55px; min-height: 34px; padding: 5px; font-size: .85rem; }
 .shared-search .child-age-entry .child-gender { flex: 1 1 100px; width: auto; min-width: 100px; min-height: 34px; padding: 5px 25px 5px 8px; border: 1px solid #dceae6; border-radius: 8px; background-color: #fff; font-size: .8rem; }
 .shared-search .child-age-entry button { flex: 0 0 32px; width: 32px; height: 32px; font-size: .8rem; }
+.shared-search .child-search-entry { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+.shared-search .child-search-entry .child-entry-label { grid-column: 1; align-self: center; }
+.shared-search .child-search-entry .child-entry-field { min-width: 0; margin: 0; color: #355a54; font-size: .75rem; font-weight: 600; }
+.shared-search .child-search-entry .child-entry-field > span { display: block; min-height: 1.2em; margin-bottom: 5px; }
+.shared-search .child-search-entry input[type="number"], .shared-search .child-search-entry .child-gender { display: block; width: 100%; min-width: 0; min-height: 41px; padding: 8px 10px; border: 1px solid #dceae6; border-radius: 8px; background-color: #fff; color: var(--ink); font-size: .85rem; }
+.shared-search .child-search-entry .child-gender { padding-right: 28px; }
+.shared-search .child-search-entry input[type="number"]:focus { border-color: #67b9aa; outline: 3px solid rgba(22,127,120,.12); }
+.shared-search .child-search-entry button { grid-column: 2; grid-row: 1; justify-self: end; }
 .shared-search .add-child-age { margin-top: 12px; font-size: .8rem; }
 .shared-search .language-options { display: grid; grid-template-columns: 1fr; gap: 4px; }
 .shared-search .language-options label { min-height: 32px; margin: 0; gap: 10px; font-size: .84rem; }

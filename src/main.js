@@ -124,16 +124,17 @@ function footer() {
 }
 
 function childEntry(index, trip = false) {
-  const age = `<input name="childAge" type="number" min="0" max="18" step="1" inputmode="numeric" placeholder="${translate(language, trip ? "ageExample" : "age")}" data-i18n-placeholder="${trip ? "ageExample" : "age"}" aria-label="${translate(language, "childAgeLabel", { number: index })}">`;
+  const age = `<input name="childAge" type="number" min="0" max="18" step="1" inputmode="numeric" placeholder="${translate(language, "ageExample")}" data-i18n-placeholder="ageExample" aria-label="${translate(language, "childAgeLabel", { number: index })}">`;
   const gender = `<select class="form-select form-select-sm child-gender" name="childGender" aria-label="${translate(language, "childGenderLabel", { number: index })}">
-      <option value="" data-i18n="optional">${translate(language, "optional")}</option>
+      <option value="" data-i18n="${trip ? "optional" : "anyGender"}">${translate(language, trip ? "optional" : "anyGender")}</option>
       <option value="Junge" data-i18n="genderBoy">${translate(language, "genderBoy")}</option>
       <option value="Mädchen" data-i18n="genderGirl">${translate(language, "genderGirl")}</option>
     </select>`;
-  return `<div class="child-age-entry">
+  return `<div class="child-age-entry${trip ? "" : " child-search-entry"}">
     <span class="child-entry-label">${translate(language, "childLabel", { number: index })}</span>
     ${trip ? `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
-    <label class="child-entry-field"><span><span data-i18n="gender">${translate(language, "gender")}</span> <span class="child-field-optional" data-i18n="optionalSuffix">${translate(language, "optionalSuffix")}</span></span>${gender}</label>` : `${age}${gender}`}
+    <label class="child-entry-field"><span><span data-i18n="gender">${translate(language, "gender")}</span> <span class="child-field-optional" data-i18n="optionalSuffix">${translate(language, "optionalSuffix")}</span></span>${gender}</label>` : `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
+    <label class="child-entry-field"><span data-i18n="gender">${translate(language, "gender")}</span>${gender}</label>`}
     <button type="button" data-action="remove-child-age" aria-label="${translate(language, "removeChildLabel", { number: index })}">${icon("x-lg")}</button>
   </div>`;
 }
