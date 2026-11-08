@@ -49,7 +49,11 @@ and calls `search_public_families()`; never expose a service-role key through a
 `trip_search_consent`, their destination, dates, languages, and children's
 approximate ages and optional genders. It does not expose names, birth years,
 email addresses, or internal user IDs. Results and filters are public, so
-combining their fields can make families identifiable. The migration grants
+combining their fields can make families identifiable.
+The landing page uses the same RPC to show up to four ongoing or upcoming
+shared trips, ordered by start date. Signed-in users do not see their own trips
+in these cards; development demo trips can also appear.
+The migration grants
 consent only to marked demo accounts; all other trips remain unshared by default.
 Real users need an informed, revocable opt-in interface before publishing their
 family details. Registration and login use Supabase Auth; a confirmed session

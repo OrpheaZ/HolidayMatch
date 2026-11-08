@@ -1,6 +1,7 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import Modal from "bootstrap/js/dist/modal.js";
 import "./styles.css";
 import familySearchHero from "./assets/familien_suchen.png";
 import myTripsHero from "./assets/meiner_eisen.png";
@@ -13,6 +14,7 @@ import { fetchOwnTrips, saveOwnTrip, removeOwnTrip, setOwnTripVisibility } from 
 import { fetchDestinationCatalog, destinationSuggestions, destinationPhoto, destinationPhotoMarkup, resolveDestination } from "./lib/destinations.js";
 import { requestFamilyContact, contactErrorMessage, fetchPersonalReferences, setFamilyFavorite, fetchReceivedContacts } from "./lib/contact.js";
 import { paginate, paginationMarkup } from "./lib/pagination.js";
+import { fetchPlannedTrips, localDateString } from "./lib/planned-trips.js";
 
 const app = document.querySelector("#app");
 const navItems = [
@@ -23,6 +25,7 @@ const navItems = [
 
 const icon = (name) => `<i class="bi bi-${name}" aria-hidden="true"></i>`;
 let currentSession = null;
+let cleanupPage = () => {};
 let destinationCatalog = [];
 let catalogPromise;
 function loadDestinationCatalog() {
@@ -42,32 +45,6 @@ function photoMarkup(location, imageClass) {
   const photo = destinationCatalog.length ? destinationPhoto(getSupabase(), destinationCatalog, location) : null;
   return destinationPhotoMarkup(photo, location.destination, destinationPlaceholder, imageClass);
 }
-const exampleTrips = [
-  {
-    destination: "Mallorca",
-    dates: "12.–22. Juli 2027",
-    country: "Spanien",
-    children: [{ age: 5, gender: "Mädchen" }, { age: 7, gender: "Junge" }],
-  },
-  {
-    destination: "Kreta",
-    dates: "4.–14. August 2027",
-    country: "Griechenland",
-    children: [{ age: 4, gender: "Mädchen" }, { age: 8, gender: "Mädchen" }],
-  },
-  {
-    destination: "Gardasee",
-    dates: "10.–20. Juli 2027",
-    country: "Italien",
-    children: [{ age: 6, gender: "Junge" }, { age: 9, gender: "Junge" }],
-  },
-  {
-    destination: "Sardinien",
-    dates: "2.–12. August 2027",
-    country: "Italien",
-    children: [{ age: 6, gender: "Mädchen" }, { age: 8, gender: "Junge" }],
-  },
-];
 function header() {
   const links = navItems.map(({ href, label }) =>
     `<a class="nav-link${location.pathname === href ? " active" : ""}" href="${href}">${label}</a>`
@@ -276,26 +253,9 @@ function landingPage() {
         <div class="container">
           <div class="planned-trips-heading">
             <h2 id="planned-trips-title">Schon geplante Reisen – sei dabei!</h2>
-            <span class="planned-trips-example-label">${icon("stars")} Fiktive Beispielreisen</span>
           </div>
           <div class="planned-trips-grid">
-            ${exampleTrips.map((trip) => `
-              <article class="planned-trip-card">
-                <figure class="destination-photo planned-trip-photo" data-example-photo="${trip.destination}">${photoMarkup(trip, "planned-trip-image")}</figure>
-                <div class="planned-trip-content">
-                  <h3>${trip.destination}</h3>
-                  <p class="planned-trip-date">${icon("calendar3")}<span>${trip.dates}</span></p>
-                  <div class="planned-trip-children">
-                    ${trip.children.map((child) => `
-                      <span class="planned-trip-child">
-                        ${icon(child.gender === "Mädchen" ? "gender-female" : "gender-male")}
-                        <span>${child.gender} · ${child.age} J.</span>
-                      </span>
-                    `).join("")}
-                  </div>
-                </div>
-              </article>
-            `).join("")}
+            <p class="planned-trips-message" id="planned-trips-message" role="status">Reisen werden geladen …</p>
             <aside class="planned-trips-cta">
               <span class="planned-trips-cta-icon">${icon("compass")}</span>
               <h3>Weitere Reisen entdecken</h3>
@@ -599,6 +559,22 @@ function myTripsPage() {
           </span>
         </button>
       </section>
+      <div class="modal trip-visibility-modal" id="trip-visibility-modal" tabindex="-1" aria-labelledby="trip-visibility-title" aria-describedby="trip-visibility-description" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <span class="trip-visibility-modal-icon" aria-hidden="true">${icon("eye")}</span>
+              <h2 class="modal-title" id="trip-visibility-title"></h2>
+              <button type="button" class="btn-close" data-visibility-cancel aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body" id="trip-visibility-description"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-primary" data-visibility-cancel>Abbrechen</button>
+              <button type="button" class="btn btn-primary" data-visibility-confirm></button>
+            </div>
+          </div>
+        </div>
+      </div>
       <dialog class="trip-dialog" id="trip-dialog" aria-labelledby="trip-dialog-title">
         <form id="trip-form">
           <div class="trip-dialog-heading">
@@ -654,7 +630,7 @@ function renderMyTrips(myTrips) {
             ${trip.legacyRegion ? `<p>Frühere Orts-/Regionsangabe: ${escapeHTML(trip.legacyRegion)}</p>` : ""}
           </div>
           <div class="my-trip-details">
-            <div class="my-trip-detail">
+            <div class="my-trip-detail my-trip-date">
               <span class="my-trip-detail-icon">${icon("calendar3")}</span>
               <span>${escapeHTML(tripDateRange(trip.start, trip.end))}<small>${tripDuration(trip.start, trip.end)} Tage</small></span>
             </div>
@@ -795,7 +771,7 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
   const map = form.querySelector("#destination-map");
   const start = form.elements.namedItem("start");
   const end = form.elements.namedItem("end");
-  let values = trip ? [] : [...new Set(exampleTrips.map((trip) => trip.destination))].sort((a, b) => a.localeCompare(b, "de"));
+  let values = [];
   const dateFormatter = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
   const monthFormatter = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
   const dayFormatter = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -1048,6 +1024,8 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
 }
 
 function mountPage() {
+  cleanupPage();
+  cleanupPage = () => {};
   const path = location.pathname.replace(/\/+$/, "") || "/";
   const page = path === "/search"
     ? searchPage()
@@ -1066,12 +1044,54 @@ function mountPage() {
 
   if (path === "/") {
     const grid = document.querySelector(".planned-trips-grid");
+    const cta = grid.querySelector(".planned-trips-cta");
+    let plannedTrips = null;
+    let requestId = 0;
+    const renderPlannedTrips = () => {
+      if (!grid.isConnected || !plannedTrips) return;
+      grid.querySelectorAll(".planned-trip-card, .planned-trips-message").forEach((item) => item.remove());
+      if (!plannedTrips.length) {
+        cta.insertAdjacentHTML("beforebegin", '<p class="planned-trips-message" role="status">Aktuell sind keine bevorstehenden Reisen für die Familiensuche freigegeben.</p>');
+        return;
+      }
+      cta.insertAdjacentHTML("beforebegin", plannedTrips.map((trip) => `
+        <article class="planned-trip-card">
+          <figure class="destination-photo planned-trip-photo">${photoMarkup(trip, "planned-trip-image")}</figure>
+          <div class="planned-trip-content">
+            <h3>${escapeHTML(trip.destination)}</h3>
+            <p class="planned-trip-date">${icon("calendar3")}<span>${escapeHTML(tripDateRange(trip.start_date, trip.end_date))}</span></p>
+            <div class="planned-trip-children">
+              ${trip.children.map((child) => `
+                <span class="planned-trip-child">
+                  ${icon(child.gender === "Mädchen" ? "gender-female" : child.gender === "Junge" ? "gender-male" : "person")}
+                  <span>${child.gender ? `${escapeHTML(child.gender)} · ` : ""}${escapeHTML(child.age)} J.</span>
+                </span>`).join("")}
+            </div>
+          </div>
+        </article>`).join(""));
+    };
+    const loadTrips = async () => {
+      const currentRequest = ++requestId;
+      try {
+        const trips = await fetchPlannedTrips(getSupabase(), localDateString());
+        if (!grid.isConnected || currentRequest !== requestId) return;
+        plannedTrips = trips;
+        renderPlannedTrips();
+      } catch (error) {
+        if (!grid.isConnected || currentRequest !== requestId) return;
+        console.error("Geplante Reisen konnten nicht geladen werden:", error);
+        plannedTrips = null;
+        grid.querySelectorAll(".planned-trip-card, .planned-trips-message").forEach((item) => item.remove());
+        cta.insertAdjacentHTML("beforebegin", '<p class="planned-trips-message" role="alert">Die Reisen konnten nicht geladen werden. Bitte versuche es später erneut.</p>');
+      }
+    };
+    document.addEventListener("landing-auth-changed", loadTrips);
+    cleanupPage = () => { document.removeEventListener("landing-auth-changed", loadTrips); };
+    loadTrips();
     loadDestinationCatalog().then(() => {
       if (!grid.isConnected) return;
-      grid.querySelectorAll("[data-example-photo]").forEach((figure) => {
-        const trip = exampleTrips.find((item) => item.destination === figure.dataset.examplePhoto);
-        figure.innerHTML = photoMarkup(trip, "planned-trip-image");
-      });
+      searchControls.setTripDestinations(destinationSuggestions(destinationCatalog));
+      renderPlannedTrips();
     }).catch((error) => console.error("Reisezielbilder konnten nicht geladen werden:", error));
     document.querySelector(".hero-actions")?.addEventListener("click", (event) => {
       const link = event.target.closest('a[href^="#"]');
@@ -1241,6 +1261,11 @@ function mountPage() {
     const receivedList = document.querySelector("#received-list");
     const receivedPagination = document.querySelector("#received-pagination");
     const dialog = document.querySelector("#trip-dialog");
+    const visibilityElement = document.querySelector("#trip-visibility-modal");
+    const visibilityModal = new Modal(visibilityElement);
+    const visibilityTitle = visibilityElement.querySelector("#trip-visibility-title");
+    const visibilityDescription = visibilityElement.querySelector("#trip-visibility-description");
+    const visibilityConfirm = visibilityElement.querySelector("[data-visibility-confirm]");
     const form = document.querySelector("#trip-form");
     const page = document.querySelector(".my-trips-page");
     const createButtons = page.querySelectorAll('[data-trip-action="new"]');
@@ -1258,7 +1283,27 @@ function mountPage() {
     let receivedPage = 1;
     let destinations = [];
     let userId = null;
+    let pendingVisibility = null;
     createButtons.forEach((button) => { button.disabled = true; });
+
+    visibilityElement.addEventListener("shown.bs.modal", () => {
+      visibilityElement.querySelector("[data-visibility-cancel]").focus();
+    });
+    visibilityElement.addEventListener("hidden.bs.modal", () => {
+      const input = pendingVisibility?.input;
+      pendingVisibility = null;
+      if (input?.isConnected) {
+        input.disabled = false;
+        input.focus();
+      }
+    });
+    visibilityElement.addEventListener("click", (event) => {
+      if (event.target.closest("[data-visibility-cancel]")) visibilityModal.hide();
+    });
+    cleanupPage = () => {
+      visibilityModal.hide();
+      visibilityModal.dispose();
+    };
 
     const showListError = (text) => {
       list.innerHTML = `<p role="alert">${escapeHTML(text)}</p>`;
@@ -1431,33 +1476,51 @@ function mountPage() {
       if (button && !button.disabled) { receivedPage = Number(button.dataset.page); renderReceived(); }
     });
 
-    list.addEventListener("change", async (event) => {
+    async function saveVisibility(trip, visible, input) {
+      input.disabled = true;
+      try {
+        await setOwnTripVisibility(getSupabase(), trip.id, visible);
+        trip.visible = visible;
+        trip.detailsShared = visible;
+        if (list.isConnected) renderTrips();
+      } catch (error) {
+        console.error("Sichtbarkeit konnte nicht gespeichert werden:", error);
+        if (input.isConnected) input.checked = trip.visible;
+        if (list.isConnected) window.alert("Die Sichtbarkeit konnte nicht gespeichert werden. Bitte versuche es erneut.");
+      } finally {
+        if (input.isConnected) input.disabled = false;
+      }
+    }
+
+    visibilityConfirm.addEventListener("click", () => {
+      if (!pendingVisibility) return;
+      const { trip, visible, input } = pendingVisibility;
+      visibilityModal.hide();
+      saveVisibility(trip, visible, input);
+    });
+
+    list.addEventListener("change", (event) => {
       const input = event.target.closest("[data-trip-visibility]");
       if (!input) return;
       const trip = myTrips.find((item) => item.id === input.dataset.tripVisibility);
       if (!trip) return;
-      if (input.checked && !window.confirm("Möchtest du Reiseziel, Reisezeitraum, Sprachen sowie Alter und Geschlecht der Kinder öffentlich für die Familiensuche freigeben? Diese Angaben können zusammen Rückschlüsse auf eure Familie ermöglichen.")) {
-        input.checked = false;
+      const visible = input.checked;
+      input.checked = trip.visible;
+      if (visible || (trip.visible && !trip.detailsShared)) {
+        pendingVisibility = { trip, visible, input };
+        input.disabled = true;
+        visibilityTitle.textContent = visible ? "Reise für Familien freigeben?" : "Sichtbarkeit ausschalten?";
+        visibilityDescription.innerHTML = visible
+          ? `<p>Wenn du deine Reise freigibst, können andere Familien diese Angaben in der Suche sehen:</p>
+             <ul><li>Reiseziel und Reisezeitraum</li><li>Sprachen sowie Alter und Geschlecht der Kinder</li></ul>
+             <p class="trip-visibility-privacy">${icon("shield-check")} Du kannst die Freigabe jederzeit wieder ausschalten.</p>`
+          : `<p>Reiseziel und Zeitraum können derzeit öffentlich sein. Familienangaben sind nicht für die Suche freigegeben.</p>
+             <p>Möchtest du die Sichtbarkeit dieser Reise ausschalten?</p>`;
+        visibilityConfirm.textContent = visible ? "Reise freigeben" : "Sichtbarkeit ausschalten";
+        visibilityModal.show();
         return;
       }
-      if (!input.checked && trip.visible && !trip.detailsShared
-        && !window.confirm("Reiseziel und Zeitraum können derzeit öffentlich sein; Familienangaben sind nicht für die Suche freigegeben. Möchtest du die Sichtbarkeit dieser Reise ausschalten?")) {
-        input.checked = true;
-        return;
-      }
-      input.disabled = true;
-      try {
-        await setOwnTripVisibility(getSupabase(), trip.id, input.checked);
-        trip.visible = input.checked;
-        trip.detailsShared = input.checked;
-        renderTrips();
-      } catch (error) {
-        console.error("Sichtbarkeit konnte nicht gespeichert werden:", error);
-        input.checked = trip.visible;
-        window.alert("Die Sichtbarkeit konnte nicht gespeichert werden. Bitte versuche es erneut.");
-      } finally {
-        input.disabled = false;
-      }
+      saveVisibility(trip, visible, input);
     });
 
     form.addEventListener("submit", async (event) => {
@@ -1644,6 +1707,7 @@ document.addEventListener("click", (event) => {
       currentSession = null;
       updateAuthNavigation();
       if (["/login", "/register", "/search", "/trips"].includes(location.pathname)) mountPage();
+      if (location.pathname === "/") document.dispatchEvent(new Event("landing-auth-changed"));
     }).catch((error) => {
       console.error("Abmeldung fehlgeschlagen:", error);
       const message = document.querySelector("#auth-navigation-error");
@@ -1701,6 +1765,9 @@ try {
       setTimeout(() => {
         if (location.pathname === "/trips" || location.pathname === "/search") mountPage();
       }, 0);
+    }
+    if (location.pathname === "/" && previousUser !== session?.user.id) {
+      setTimeout(() => document.dispatchEvent(new Event("landing-auth-changed")), 0);
     }
   });
   client.auth.getSession().then(async ({ data, error }) => {
