@@ -98,6 +98,10 @@ trip and family details are shared. Public results include the description,
 interests and photo when consent is active. Without a photo, the destination
 image or a neutral placeholder is used. Sharing a photo requires the owner to
 have permission to share it.
+Trip cards show interests directly and open a details dialog with the available
+trip information. Other families' shared trips offer contact from that dialog;
+own trips do not offer self-contact, and previously contacted trips show their
+contact status instead.
 Received requests and their messages appear on the recipient's trips
 page; replies and notifications are not yet implemented. Password
 recovery remains a prototype. Test RLS and consent with separate accounts before

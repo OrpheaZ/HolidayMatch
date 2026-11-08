@@ -45,7 +45,7 @@ export async function hydrateTripPhotos(client, container) {
       const url = URL.createObjectURL(data);
       image.dataset.tripObjectUrl = url;
       delete image.dataset.fallbackApplied;
-      image.alt = "Reisefoto";
+      image.alt = image.dataset.tripPhotoAlt ?? "Reisefoto";
       image.src = url;
     } catch (error) {
       console.error("Reisebild konnte nicht geladen werden:", error);

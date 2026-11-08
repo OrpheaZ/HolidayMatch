@@ -89,11 +89,11 @@ export function destinationPhoto(client, rows, { destination, country, destinati
   return { url: image.href };
 }
 
-export function destinationPhotoMarkup(photo, destination, placeholder, imageClass) {
+export function destinationPhotoMarkup(photo, destination, placeholder, imageClass, altText) {
   const escape = (value) => String(value).replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]);
-  return `<img class="${escape(imageClass)}" src="${escape(photo?.url ?? placeholder)}" alt="${escape(photo ? `Reiseziel ${destination}` : "Neutrale Platzhaltergrafik")}" loading="lazy" decoding="async" data-destination-photo>`;
+  return `<img class="${escape(imageClass)}" src="${escape(photo?.url ?? placeholder)}" alt="${escape(altText ?? (photo ? `Reiseziel ${destination}` : "Neutrale Platzhaltergrafik"))}" loading="lazy" decoding="async" data-destination-photo>`;
 }
 
 export function resolveDestination(input, destinations) {

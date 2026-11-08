@@ -53,21 +53,21 @@ function loadDestinationCatalog() {
 
 function photoMarkup(location, imageClass) {
   const photo = destinationCatalog.length ? destinationPhoto(getSupabase(), destinationCatalog, location) : null;
-  const markup = destinationPhotoMarkup(photo, location.destination, destinationPlaceholder, imageClass);
+  const altText = photo ? translate(language, "destinationPhotoAlt", { destination: location.destination }) : translate(language, "placeholderPhotoAlt");
+  const markup = destinationPhotoMarkup(photo, location.destination, destinationPlaceholder, imageClass, altText);
   return location.photo_path
-    ? markup.replace(" data-destination-photo", ` data-trip-photo-path="${escapeHTML(location.photo_path)}" data-photo-fallback="${escapeHTML(photo?.url ?? destinationPlaceholder)}" data-destination-photo`)
+    ? markup.replace(" data-destination-photo", ` data-trip-photo-path="${escapeHTML(location.photo_path)}" data-trip-photo-alt="${escapeHTML(translate(language, "tripPhotoAlt"))}" data-photo-fallback="${escapeHTML(photo?.url ?? destinationPlaceholder)}" data-destination-photo`)
     : markup;
 }
 const tripInterests = ["Strand", "Schwimmen", "Spielplatz", "Sandburgen", "Wassersport", "Wandern", "Natur", "Tiere", "Fahrradfahren", "Ausflüge", "Kultur", "Essen", "Brettspiele", "Basteln", "Freizeitpark", "Sport", "Entspannung", "Camping"];
 
-function tripDetailsMarkup(trip) {
-  const description = trip.description?.trim();
+function tripDetailsMarkup(trip, kind = "public") {
   const interests = trip.interests ?? [];
-  return `<details class="trip-extra-details">
-    <summary>${translate(language, "tripDetails")}</summary>
-    ${description ? `<p>${escapeHTML(description)}</p>` : `<p>${translate(language, "noDescription")}</p>`}
+  const reference = kind === "own" ? trip.id : trip.trip_reference;
+  return `<div class="trip-extra-details">
     ${interests.length ? `<p><strong>${translate(language, "interests")}</strong> ${escapeHTML(interests.map((value) => translateChoice(language, value)).join(", "))}</p>` : ""}
-  </details>`;
+    <button class="trip-details-link" type="button" data-trip-details="${escapeHTML(reference)}" data-trip-kind="${kind}">${translate(language, "tripDetails")}</button>
+  </div>`;
 }
 function header() {
   const links = navItems.map(({ href, label, key }) =>
@@ -495,6 +495,13 @@ function searchPage() {
           </div>
         </div>
       </section>
+    </main>`;
+}
+
+function tripDialogsMarkup() {
+  return `<dialog class="trip-dialog trip-details-dialog" id="trip-details-dialog" aria-labelledby="trip-details-title">
+        <div id="trip-details-content"></div>
+      </dialog>
       <dialog class="trip-dialog" id="contact-dialog" aria-labelledby="contact-title">
         <form id="contact-form">
           <div class="trip-dialog-heading"><h2 id="contact-title" data-i18n="contactTitle">Nachricht an die Familie</h2>
@@ -509,7 +516,7 @@ function searchPage() {
           <div class="trip-dialog-actions"><button class="btn btn-outline-primary" type="button" data-contact-close data-i18n="cancel">Abbrechen</button><button class="btn btn-primary" type="submit" data-i18n="sendRequest">Anfrage senden</button></div>
         </form>
       </dialog>
-    </main>`;
+    `;
 }
 
 function escapeHTML(value) {
@@ -679,7 +686,7 @@ function renderMyTrips(myTrips) {
               <span>${escapeHTML(trip.languages.map((value) => translateChoice(language, value)).join(", "))}</span>
             </div>
           </div>
-          ${tripDetailsMarkup(trip)}
+          ${tripDetailsMarkup(trip, "own")}
         </div>
         <div class="my-trip-controls">
           <label class="my-trip-visibility">
@@ -1110,9 +1117,163 @@ function mountPage() {
       : path === "/register"
         ? authPage("register")
         : landingPage();
-  app.innerHTML = `${header()}${page}${footer()}`;
+  app.innerHTML = `${header()}${page}${footer()}${["/", "/search", "/trips"].includes(path) ? tripDialogsMarkup() : ""}`;
   updateAuthNavigation();
   translateElements(app, language);
+  let resolveDetail = () => null;
+  let hasContacted = () => false;
+  let markContacted = () => {};
+  let detailContactState = () => ({ checking: false, error: false });
+  const detailsDialog = document.querySelector("#trip-details-dialog");
+  const detailsContent = document.querySelector("#trip-details-content");
+  const contactDialog = document.querySelector("#contact-dialog");
+  const contactForm = document.querySelector("#contact-form");
+  const contactStatus = document.querySelector("#contact-form-status");
+  let selectedDetail = null;
+  let selectedFamily = null;
+
+  function renderDetails() {
+    if (!selectedDetail || !detailsDialog.open) return;
+    const { trip, kind } = selectedDetail;
+    const personalState = detailContactState();
+    const checking = selectedDetail.checking || (kind === "public" && personalState.checking);
+    const contactError = selectedDetail.contactError || (kind === "public" && personalState.error);
+    const location = [trip.region, trip.destination, trip.country].filter(Boolean).join(", ");
+    const children = (trip.children ?? []).map((child) =>
+      `${translate(language, "yearCount", { count: child.age })}${child.gender ? ` (${translateChoice(language, child.gender)})` : ""}`).join(", ");
+    const languages = (trip.languages ?? []).map((value) => translateChoice(language, value)).join(", ");
+    const interests = (trip.interests ?? []).map((value) => translateChoice(language, value)).join(", ");
+    const start = trip.start_date ?? trip.start;
+    const end = trip.end_date ?? trip.end;
+    releaseTripPhotos(detailsContent);
+    detailsContent.innerHTML = `
+      <div class="trip-dialog-heading">
+        <h2 id="trip-details-title">${translate(language, "detailsTitle")}</h2>
+        <button type="button" class="trip-dialog-close" data-details-close aria-label="${translate(language, "closeDialog")}">${icon("x-lg")}</button>
+      </div>
+      <figure class="destination-photo trip-details-photo">${photoMarkup({ ...trip, destinationId: trip.locationData?.destinationId }, "trip-details-image")}</figure>
+      <h3 class="trip-details-destination">${escapeHTML(trip.destination)}</h3>
+      <dl class="trip-details-facts">
+        <div><dt>${translate(language, "destination")}</dt><dd>${escapeHTML(location)}</dd></div>
+        ${kind === "own" && trip.legacyRegion ? `<div><dt>${translate(language, "previousRegionLabel")}</dt><dd>${escapeHTML(trip.legacyRegion)}</dd></div>` : ""}
+        ${trip.accommodation ? `<div><dt>${translate(language, "accommodation")}</dt><dd>${escapeHTML(trip.accommodation)}</dd></div>` : ""}
+        <div><dt>${translate(language, "travelDates")}</dt><dd>${escapeHTML(tripDateRange(start, end))}</dd></div>
+        <div><dt>${translate(language, "childrenLabel")}</dt><dd>${escapeHTML(children || translate(language, "noChildren"))}</dd></div>
+        <div><dt>${translate(language, "spokenLanguage")}</dt><dd>${escapeHTML(languages || translate(language, "noLanguages"))}</dd></div>
+        ${interests ? `<div><dt>${translate(language, "interests")}</dt><dd>${escapeHTML(interests)}</dd></div>` : ""}
+        ${kind === "own" ? `<div><dt>${translate(language, "visibleToOthers")}</dt><dd>${translate(language, trip.visible ? "visibilityOn" : "visibilityOff")}</dd></div>` : ""}
+      </dl>
+      <div class="trip-details-description"><h3>${translate(language, "descriptionLabel")}</h3><p>${escapeHTML(trip.description?.trim() || translate(language, "noDescription"))}</p></div>
+      <p class="trip-details-status" role="alert"${contactError ? "" : " hidden"}>${contactError ? translate(language, "personalLoadFailed") : ""}</p>
+      ${kind === "own" ? "" : kind === "contacted" || hasContacted(trip.trip_reference)
+        ? `<p class="contacted-label" role="status">${translate(language, "contacted")}</p>`
+        : `<div class="trip-dialog-actions"><button type="button" class="btn btn-primary" data-details-contact${checking || contactError ? " disabled" : ""}>${icon("chat-dots")} ${translate(language, checking ? "contactChecking" : "contactRequest")}</button></div>`}`;
+    hydrateTripPhotos(getSupabase(), detailsContent);
+  }
+
+  async function startContact(family, button) {
+    button.disabled = true;
+    try {
+      const { data, error } = await getSupabase().auth.getUser();
+      if (error && error.name !== "AuthSessionMissingError") throw error;
+      if (!button.isConnected) return;
+      if (!data.user) { navigate("/login"); return; }
+      selectedFamily = family;
+      contactForm.reset();
+      contactForm.elements.namedItem("message").value = translate(language, "defaultMessage", {
+        dates: tripDateRange(family.start_date, family.end_date),
+        destination: family.destination,
+      });
+      contactStatus.hidden = true;
+      if (detailsDialog.open) detailsDialog.close();
+      contactDialog.showModal();
+      contactForm.elements.namedItem("message").focus();
+    } catch (error) {
+      console.error("Kontaktformular konnte nicht geöffnet werden:", error);
+      const status = detailsDialog.open ? detailsContent.querySelector(".trip-details-status") : document.querySelector("#personal-results-error");
+      if (status) { showTranslatedText(status, "contactFailed"); status.hidden = false; }
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
+  }
+
+  if (detailsDialog) {
+    const handleDetailsClick = async (event) => {
+      const open = event.target.closest("[data-trip-details]");
+      if (open) {
+        const trip = resolveDetail(open.dataset.tripDetails, open.dataset.tripKind);
+        if (!trip) {
+          window.alert(translate(language, "detailsUnavailable"));
+          return;
+        }
+        const detail = { trip, kind: open.dataset.tripKind, checking: path === "/" };
+        selectedDetail = detail;
+        detailsDialog.showModal();
+        renderDetails();
+        if (detail.checking) {
+          try {
+            const { data, error } = await getSupabase().auth.getUser();
+            if (error && error.name !== "AuthSessionMissingError") throw error;
+            if (data.user) {
+              const rows = await fetchPersonalReferences(getSupabase(), "my_contacted_families");
+              if (selectedDetail === detail && detailsDialog.open
+                && rows.some((row) => row.trip_reference === trip.trip_reference)) markContacted(trip.trip_reference);
+            }
+          } catch (error) {
+            console.error("Kontaktstatus konnte nicht geladen werden:", error);
+            detail.contactError = true;
+          } finally {
+            detail.checking = false;
+            if (selectedDetail === detail && detailsDialog.open) renderDetails();
+          }
+        }
+      } else if (event.target.closest("[data-details-close]")) {
+        detailsDialog.close();
+      } else if (event.target.closest("[data-details-contact]") && selectedDetail) {
+        startContact(selectedDetail.trip, event.target.closest("[data-details-contact]"));
+      }
+    };
+    app.querySelector("main").addEventListener("click", handleDetailsClick);
+    detailsDialog.addEventListener("click", handleDetailsClick);
+    detailsDialog.addEventListener("close", () => {
+      releaseTripPhotos(detailsContent);
+      detailsContent.innerHTML = "";
+      selectedDetail = null;
+    });
+    contactDialog.addEventListener("click", (event) => {
+      if (event.target.closest("[data-contact-close]")) contactDialog.close();
+    });
+    contactForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!selectedFamily || !contactForm.reportValidity()) return;
+      const message = contactForm.elements.namedItem("message").value.trim();
+      if (!message) {
+        showTranslatedText(contactStatus, "enterMessage");
+        contactStatus.hidden = false;
+        return;
+      }
+      const submit = contactForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      const tripReference = selectedFamily.trip_reference;
+      showTranslatedText(contactStatus, "savingRequest");
+      contactStatus.hidden = false;
+      try {
+        const sent = await requestFamilyContact(getSupabase(), tripReference, message,
+          new FormData(contactForm).getAll("interest").map(String));
+        if (!contactForm.isConnected) return;
+        if (!sent) { contactDialog.close(); navigate("/login"); return; }
+        markContacted(tripReference);
+        if (contactDialog.open && selectedFamily?.trip_reference === tripReference) contactDialog.close();
+      } catch (error) {
+        console.error("Kontaktanfrage fehlgeschlagen:", error);
+        if (contactForm.isConnected) {
+          showTranslatedText(contactStatus, error.code === "23505" ? "contactDuplicate" : error.code === "42501" ? "contactUnavailable" : "contactFailed");
+        }
+      } finally {
+        if (contactForm.isConnected) submit.disabled = false;
+      }
+    });
+  }
 
   const searchFormElement = document.querySelector("#trip-search-form");
   const searchControls = searchFormElement ? setupLandingSearch(searchFormElement) : null;
@@ -1121,6 +1282,10 @@ function mountPage() {
     const grid = document.querySelector(".planned-trips-grid");
     const cta = grid.querySelector(".planned-trips-cta");
     let plannedTrips = null;
+    const landingContacted = new Set();
+    hasContacted = (id) => landingContacted.has(id);
+    markContacted = (id) => { landingContacted.add(id); };
+    resolveDetail = (id, kind) => kind === "public" ? plannedTrips?.find((trip) => trip.trip_reference === id) : null;
     let requestId = 0;
     const renderPlannedTrips = () => {
       if (!grid.isConnected || !plannedTrips) return;
@@ -1151,6 +1316,9 @@ function mountPage() {
     updatePageLanguage = () => { searchControls?.updateLanguage(); renderPlannedTrips(); };
     const loadTrips = async () => {
       const currentRequest = ++requestId;
+      if (detailsDialog.open) detailsDialog.close();
+      if (contactDialog.open) contactDialog.close();
+      landingContacted.clear();
       try {
         const trips = await fetchPlannedTrips(getSupabase(), localDateString());
         if (!grid.isConnected || currentRequest !== requestId) return;
@@ -1194,16 +1362,17 @@ function mountPage() {
     const errorMessage = document.querySelector("#family-results-error");
     const personalError = document.querySelector("#personal-results-error");
     const empty = document.querySelector("#empty-results");
-    const contactDialog = document.querySelector("#contact-dialog");
-    const contactForm = document.querySelector("#contact-form");
-    const contactStatus = document.querySelector("#contact-form-status");
-    let selectedFamily = null;
     let pageNumber = 1;
     let personalReady = false;
+    let personalFailed = false;
     let signedIn = false;
     let favorites = new Set();
     let contacted = new Set();
     let loadedFamilies = null;
+    resolveDetail = (id, kind) => kind === "public" ? loadedFamilies?.find((family) => family.trip_reference === id) : null;
+    hasContacted = (id) => contacted.has(id);
+    detailContactState = () => ({ checking: !personalReady && !personalFailed, error: personalFailed });
+    markContacted = (id) => { contacted.add(id); renderFamilies(); };
     const renderFamilies = () => {
       if (!loadedFamilies) return;
       const matches = filterFamilies(loadedFamilies, new URLSearchParams(location.search));
@@ -1238,11 +1407,14 @@ function mountPage() {
         }
         personalReady = true;
         renderFamilies();
+        renderDetails();
       } catch (error) {
         console.error("Persönliche Markierungen konnten nicht geladen werden:", error);
         if (!results.isConnected) return;
+        personalFailed = true;
         showTranslatedText(personalError, "personalLoadFailed");
         personalError.hidden = false;
+        renderDetails();
       }
     })();
     showTranslatedText(count, "loadingFamilies");
@@ -1270,17 +1442,8 @@ function mountPage() {
     document.querySelector("#family-results").addEventListener("click", async (event) => {
       const contact = event.target.closest("[data-contact]");
       if (contact) {
-        if (!signedIn) { navigate("/login"); return; }
-        selectedFamily = loadedFamilies.find((family) => family.trip_reference === contact.dataset.contact);
-        if (!selectedFamily) return;
-        contactForm.reset();
-        contactForm.elements.namedItem("message").value = translate(language, "defaultMessage", {
-          dates: tripDateRange(selectedFamily.start_date, selectedFamily.end_date),
-          destination: selectedFamily.destination,
-        });
-        contactStatus.hidden = true;
-        contactDialog.showModal();
-        contactForm.elements.namedItem("message").focus();
+        const family = loadedFamilies?.find((item) => item.trip_reference === contact.dataset.contact);
+        if (family) startContact(family, contact);
         return;
       }
       const button = event.target.closest("[data-favorite]");
@@ -1299,40 +1462,6 @@ function mountPage() {
         showTranslatedText(personalError, "favoriteFailed");
         personalError.hidden = false;
         if (button.isConnected) button.disabled = false;
-      }
-    });
-    contactDialog.addEventListener("click", (event) => {
-      if (event.target.closest("[data-contact-close]")) contactDialog.close();
-    });
-    contactForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!selectedFamily || !contactForm.reportValidity()) return;
-      const message = contactForm.elements.namedItem("message").value.trim();
-      if (!message) {
-        showTranslatedText(contactStatus, "enterMessage");
-        contactStatus.hidden = false;
-        return;
-      }
-      const submit = contactForm.querySelector('button[type="submit"]');
-      submit.disabled = true;
-      const tripReference = selectedFamily.trip_reference;
-      showTranslatedText(contactStatus, "savingRequest");
-      contactStatus.hidden = false;
-      try {
-        const sent = await requestFamilyContact(getSupabase(), tripReference, message,
-          new FormData(contactForm).getAll("interest").map(String));
-        if (!contactForm.isConnected) return;
-        if (!sent) { contactDialog.close(); navigate("/login"); return; }
-        contacted.add(tripReference);
-        if (contactDialog.open && selectedFamily?.trip_reference === tripReference) contactDialog.close();
-        renderFamilies();
-      } catch (error) {
-        console.error("Kontaktanfrage fehlgeschlagen:", error);
-        if (contactForm.isConnected) {
-          showTranslatedText(contactStatus, error.code === "23505" ? "contactDuplicate" : error.code === "42501" ? "contactUnavailable" : "contactFailed");
-        }
-      } finally {
-        if (contactForm.isConnected) submit.disabled = false;
       }
     });
     pagination.addEventListener("click", (event) => {
@@ -1368,6 +1497,9 @@ function mountPage() {
     let tripPage = 1;
     let contactPage = 1;
     let contactedFamilies = [];
+    resolveDetail = (id, kind) => kind === "own"
+      ? myTrips.find((trip) => trip.id === id)
+      : kind === "contacted" ? contactedFamilies.find((family) => family.trip_reference === id && family.destination !== null) : null;
     let contactedLoaded = false;
     let receivedContacts = [];
     let receivedLoaded = false;
@@ -1431,7 +1563,7 @@ function mountPage() {
               <p>${icon("calendar3")} ${escapeHTML(tripDateRange(family.start_date, family.end_date))}</p>
               <p>${icon("people-fill")} ${family.children.length ? `${translate(language, family.children.length === 1 ? "childCountOne" : "childCountOther", { count: family.children.length })}: ${escapeHTML(children)}` : translate(language, "noChildren")}</p>
               <p>${icon("globe2")} ${escapeHTML(family.languages?.map((value) => translateChoice(language, value)).join(", ") || translate(language, "noLanguages"))}</p>` : ""}
-            ${available ? tripDetailsMarkup(family) : ""}
+            ${available ? tripDetailsMarkup(family, "contacted") : ""}
           </div>
           <span class="contacted-label">${escapeHTML(translate(language, "contactedOn", { date: contactedDate }))}</span>
         </article>`;
@@ -1854,6 +1986,15 @@ function mountPage() {
     notice.hidden = false;
   });
 
+  if (detailsDialog) {
+    const updateExistingPage = updatePageLanguage;
+    updatePageLanguage = () => { updateExistingPage(); renderDetails(); };
+    const cleanupExistingPage = cleanupPage;
+    cleanupPage = () => {
+      releaseTripPhotos(detailsContent);
+      cleanupExistingPage();
+    };
+  }
 }
 
 document.addEventListener("change", (event) => {
@@ -1899,6 +2040,7 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (document.querySelector("#trip-details-dialog[open], #contact-dialog[open]")) return;
   const form = document.querySelector("#trip-search-form, #trip-form");
   if (!form) return;
   const picker = document.activeElement.closest(".landing-picker");
