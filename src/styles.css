@@ -97,7 +97,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .destination-photo { position: relative; min-width: 0; margin: 0; }
 .contacted-families { padding: 22px; border-radius: 16px; background: #fff; }
 .contacted-families h2 { font-size: 1.2rem; }
-.contacted-family { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #e3ebe5; }
+.contacted-family { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 14px 0; border-top: 1px solid #e3ebe5; }
+.contacted-family-photo { flex: 0 0 132px; overflow: hidden; border-radius: 12px; background: #d7eee9; }
+.contacted-family-photo img { display: block; width: 100%; aspect-ratio: 1.55; object-fit: cover; }
+.contacted-family-details { flex: 1 1 220px; min-width: 0; }
+.contacted-family-details .bi { margin-right: 5px; color: var(--teal); }
 .contacted-family p { margin: 4px 0 0; color: #74827e; }
 .received-contact { padding: 12px 0; border-top: 1px solid #e3ebe5; }
 .received-contact p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -777,7 +781,15 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .trip-dialog .shared-search .trip-region-field input { min-height: 32px; padding: 0; border: 0; background: transparent; }
 .trip-dialog .shared-search .landing-popover { position: static; width: 100%; max-width: none; margin-top: 10px; box-shadow: none; }
 .trip-dialog .shared-search .landing-suggestions[hidden], .trip-dialog .shared-search .landing-map[hidden] { display: none; }
-.trip-dialog .shared-search .child-age-entry input[type="number"] { width: 55px; min-height: 34px; padding: 5px; border: 0; background: transparent; }
+.trip-dialog .shared-search .child-age-entry { align-items: flex-end; gap: 8px; padding: 12px; }
+.trip-dialog .shared-search .child-age-entry .child-entry-field { flex: 1 1 110px; min-width: 0; margin: 0; color: #355a54; font-size: .75rem; }
+.trip-dialog .shared-search .child-entry-field > span { display: block; margin-bottom: 5px; }
+.trip-dialog .shared-search .child-field-optional { color: #758b85; font-weight: 400; }
+.trip-dialog .shared-search .child-age-entry input[type="number"],
+.trip-dialog .shared-search .child-age-entry .child-gender { display: block; width: 100%; min-width: 0; min-height: 41px; padding: 8px 10px; border: 1px solid #dceae6; border-radius: 8px; background-color: #fff; color: var(--ink); font-size: .85rem; }
+.trip-dialog .shared-search .child-age-entry .child-gender { padding-right: 28px; }
+.trip-dialog .shared-search .child-age-entry input[type="number"]:focus { border-color: #67b9aa; outline: 3px solid rgba(22,127,120,.12); }
+.trip-dialog .shared-search .child-age-entry button { margin-bottom: 4px; }
 .trip-dialog .shared-search .language-options label { display: flex; align-items: center; margin: 0; }
 .trip-dialog .shared-search .language-options input { min-height: 0; padding: 0; }
 .shared-search .landing-child-options > label { margin: 0 0 5px; font-size: .78rem; }

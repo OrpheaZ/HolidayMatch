@@ -72,7 +72,9 @@ The search excludes the signed-in user's own trips, while anonymous visitors can
 see all eligible trips. Signed-in users can save one contact request per trip with a message and optional interests. Favorites
 and sent-contact markers are private to the signed-in user and saved in Supabase;
 the trips page lists sent contacts without exposing trips that are no longer
-public. Received requests and their messages appear on the recipient's trips
+public. Sent contacts show their contact date and the family's currently shared
+search details and destination thumbnail; withdrawn details are not shown.
+Received requests and their messages appear on the recipient's trips
 page; replies and notifications are not yet implemented. Password
 recovery remains a prototype. Test RLS and consent with separate accounts before
 using real family data.

@@ -114,15 +114,17 @@ function footer() {
     </footer>`;
 }
 
-function childEntry(index) {
-  return `<div class="child-age-entry">
-    <span class="child-entry-label">Kind ${index}</span>
-    <input name="childAge" type="number" min="0" max="18" inputmode="numeric" placeholder="Alter" aria-label="Alter von Kind ${index}">
-    <select class="form-select form-select-sm child-gender" name="childGender" aria-label="Geschlecht von Kind ${index} (optional)">
+function childEntry(index, trip = false) {
+  const age = `<input name="childAge" type="number" min="0" max="18" step="1" inputmode="numeric" placeholder="${trip ? "z. B. 6" : "Alter"}" aria-label="Alter von Kind ${index}">`;
+  const gender = `<select class="form-select form-select-sm child-gender" name="childGender" aria-label="Geschlecht von Kind ${index} (optional)">
       <option value="">Optional</option>
       <option value="Junge">Junge</option>
       <option value="Mädchen">Mädchen</option>
-    </select>
+    </select>`;
+  return `<div class="child-age-entry">
+    <span class="child-entry-label">Kind ${index}</span>
+    ${trip ? `<label class="child-entry-field"><span>Alter in Jahren</span>${age}</label>
+    <label class="child-entry-field"><span>Geschlecht <span class="child-field-optional">(optional)</span></span>${gender}</label>` : `${age}${gender}`}
     <button type="button" data-action="remove-child-age" aria-label="Kind ${index} entfernen">${icon("x-lg")}</button>
   </div>`;
 }
@@ -186,7 +188,7 @@ function searchForm({ reset = false, trip = false } = {}) {
         <details class="landing-picker child-picker">
           <summary aria-labelledby="landing-child-label landing-child-summary"><span id="landing-child-summary" data-child-summary>Alle Altersgruppen</span>${icon("chevron-down")}</summary>
           <div class="landing-popover landing-child-options">
-            <p>Gib das Alter deiner Kinder an. Junge oder Mädchen ist optional.</p>
+            <p>${trip ? "Gib das Alter direkt ein und wähle bei Bedarf das Geschlecht aus." : "Gib das Alter deiner Kinder an. Junge oder Mädchen ist optional."}</p>
             ${["3-5", "6-8", "9-12"].includes(legacyAge) ? `
               <label for="legacy-age">Bisheriger Altersbereich</label>
               <select id="legacy-age" name="age">
@@ -197,7 +199,7 @@ function searchForm({ reset = false, trip = false } = {}) {
               </select>
             ` : ""}
             <div class="child-age-list" id="child-age-list">
-              ${childEntry(1)}
+              ${childEntry(1, trip)}
             </div>
             <button class="add-child-age" type="button" data-action="add-child-age">${icon("plus-circle")} Kind hinzufügen</button>
             <button type="button" class="landing-picker-done" data-action="close-picker">Übernehmen</button>
@@ -609,7 +611,6 @@ function myTripsPage() {
           <input type="hidden" name="id">
           <div class="shared-search">${searchForm({ trip: true })}</div>
           <p id="trip-destinations-notice" role="status" hidden></p>
-          <p id="trip-legacy-notice" role="status" hidden></p>
           <p class="trip-form-message" id="trip-form-message" role="status" hidden></p>
           <div class="trip-dialog-actions">
             <button class="btn btn-outline-primary" type="button" data-trip-action="close">Abbrechen</button>
@@ -674,7 +675,6 @@ function renderMyTrips(myTrips) {
             <input type="checkbox" data-trip-visibility="${trip.id}" aria-label="${escapeHTML(trip.destination)} für andere Familien sichtbar machen"${trip.visible ? " checked" : ""}>
             <span class="my-trip-switch" aria-hidden="true"></span>
           </label>
-          ${trip.visible && !trip.detailsShared ? '<small>Reiseziel und Zeitraum können öffentlich sein; Familienangaben sind nicht für die Suche freigegeben.</small>' : ""}
           <div class="my-trip-actions">
             <button type="button" data-trip-action="edit" data-trip-id="${trip.id}">${icon("pencil")}<span>Bearbeiten</span></button>
             <a href="/search?${query}" aria-label="Passende Familien für ${escapeHTML(trip.destination)} finden">${icon("people")}<span>Passende Familien</span></a>
@@ -851,7 +851,7 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
     if (childAgeList.children.length >= 6) return null;
     const index = childAgeList.children.length + 1;
     const entry = document.createElement("div");
-    entry.innerHTML = childEntry(index);
+    entry.innerHTML = childEntry(index, trip);
     const child = entry.firstElementChild;
     childAgeList.append(child);
     const input = child.querySelector("input");
@@ -1026,7 +1026,7 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
       if (!suggestions.hidden) showSuggestions();
     },
     setTrip(trip) {
-      childAgeList.innerHTML = childEntry(1);
+      childAgeList.innerHTML = childEntry(1, true);
       form.querySelector('[data-action="add-child-age"]').disabled = false;
       (trip?.children ?? []).forEach((child, index) => {
         const input = childAgeList.querySelectorAll('input[name="childAge"]')[index] ?? addChild(false);
@@ -1252,6 +1252,7 @@ function mountPage() {
     let tripPage = 1;
     let contactPage = 1;
     let contactedFamilies = [];
+    let contactedLoaded = false;
     let receivedContacts = [];
     let receivedLoaded = false;
     let receivedPage = 1;
@@ -1272,12 +1273,27 @@ function mountPage() {
     const renderContacted = () => {
       const page = paginate(contactedFamilies, contactPage);
       contactPage = page.current;
-      contactedList.innerHTML = page.items.length ? page.items.map((family) => `
-        <article class="contacted-family">
-          <div><strong>Familie${family.destination ? ` in ${escapeHTML(family.destination)}` : " – Reise nicht mehr öffentlich"}</strong>
-          ${family.start_date && family.end_date ? `<p>${escapeHTML(tripDateRange(family.start_date, family.end_date))}</p>` : ""}</div>
-          <span class="contacted-label">Kontaktiert</span>
-        </article>`).join("") : "<p>Du hast noch keine Familien kontaktiert.</p>";
+      contactedList.innerHTML = page.items.length ? page.items.map((family) => {
+        const available = family.destination !== null;
+        const location = [family.region, family.destination, family.country].filter(Boolean).join(", ");
+        const children = (family.children ?? []).map((child) =>
+          `${child.age} Jahre${child.gender ? ` (${child.gender})` : ""}`).join(", ");
+        const contactedDate = new Intl.DateTimeFormat("de-DE", {
+          day: "numeric", month: "long", year: "numeric",
+        }).format(new Date(family.contacted_at));
+        return `<article class="contacted-family">
+          <figure class="destination-photo contacted-family-photo">${photoMarkup(family, "")}</figure>
+          <div class="contacted-family-details">
+            <strong>Familie${available ? ` in ${escapeHTML(family.destination)}` : " – Reise nicht mehr öffentlich"}</strong>
+            ${available ? `
+              <p>${icon("geo-alt-fill")} ${escapeHTML(location)}</p>
+              <p>${icon("calendar3")} ${escapeHTML(tripDateRange(family.start_date, family.end_date))}</p>
+              <p>${icon("people-fill")} ${family.children.length ? `${family.children.length} ${family.children.length === 1 ? "Kind" : "Kinder"}: ${escapeHTML(children)}` : "Keine Kinder angegeben"}</p>
+              <p>${icon("globe2")} ${escapeHTML(family.languages?.join(", ") || "Keine Sprachen angegeben")}</p>` : ""}
+          </div>
+          <span class="contacted-label">Kontaktiert am ${escapeHTML(contactedDate)}</span>
+        </article>`;
+      }).join("") : "<p>Du hast noch keine Familien kontaktiert.</p>";
       contactedPagination.innerHTML = paginationMarkup(page.current, page.pages, "Seiten kontaktierter Familien");
     };
     const renderReceived = () => {
@@ -1317,8 +1333,9 @@ function mountPage() {
         userId = data.user.id;
         await refreshTrips();
         try {
-          contactedFamilies = await fetchPersonalReferences(getSupabase(), "my_contacted_families");
+          contactedFamilies = await fetchPersonalReferences(getSupabase(), "my_contacted_family_details");
           if (!list.isConnected) return;
+          contactedLoaded = true;
           renderContacted();
         } catch (error) {
           console.error("Kontaktierte Familien konnten nicht geladen werden:", error);
@@ -1340,6 +1357,7 @@ function mountPage() {
           if (!list.isConnected) return;
           tripSearch.setTripDestinations(destinations);
           renderTrips();
+          if (contactedLoaded) renderContacted();
         } catch (error) {
           console.error("Reisezielvorschläge konnten nicht geladen werden:", error);
           if (!list.isConnected) return;
@@ -1378,10 +1396,6 @@ function mountPage() {
         document.querySelector("#trip-dialog-title").textContent =
           trip ? "Reise bearbeiten" : "Neue Reise erstellen";
         document.querySelector("#trip-form-message").hidden = true;
-        const legacyNotice = form.querySelector("#trip-legacy-notice");
-        const oldRegions = [trip?.region, trip?.legacyRegion].filter(Boolean);
-        legacyNotice.textContent = oldRegions.length ? `Bisherige Orts-/Regionsangabe: ${oldRegions.join("; ")}. Sie bleibt erhalten.` : "";
-        legacyNotice.hidden = !oldRegions.length;
         destinationInput.setCustomValidity("");
         endInput.setCustomValidity("");
         dialog.showModal();
@@ -1424,6 +1438,11 @@ function mountPage() {
       if (!trip) return;
       if (input.checked && !window.confirm("Möchtest du Reiseziel, Reisezeitraum, Sprachen sowie Alter und Geschlecht der Kinder öffentlich für die Familiensuche freigeben? Diese Angaben können zusammen Rückschlüsse auf eure Familie ermöglichen.")) {
         input.checked = false;
+        return;
+      }
+      if (!input.checked && trip.visible && !trip.detailsShared
+        && !window.confirm("Reiseziel und Zeitraum können derzeit öffentlich sein; Familienangaben sind nicht für die Suche freigegeben. Möchtest du die Sichtbarkeit dieser Reise ausschalten?")) {
+        input.checked = true;
         return;
       }
       input.disabled = true;
