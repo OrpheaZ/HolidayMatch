@@ -669,6 +669,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .hero-secondary { --bs-btn-color: #078f85; --bs-btn-border-color: #0eaaa0; --bs-btn-hover-color: #087c75; --bs-btn-hover-bg: #effbf9; --bs-btn-hover-border-color: #078f85; border-radius: 999px; }
 .hero-benefits { position: relative; z-index: 1; display: grid; width: min(820px, 100%); grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; margin-top: auto; padding: 5px 8px; border: 1px solid rgba(255,255,255,.66); border-radius: 16px; background: rgba(255,255,255,.75); box-shadow: 0 8px 26px rgba(44, 91, 94, .055); backdrop-filter: blur(7px); }
 .hero-benefit { position: relative; display: flex; min-width: 0; align-items: center; gap: 9px; padding: 5px 10px; color: #163650; font-size: .79rem; font-weight: 750; line-height: 1.35; }
+.hero-benefit > span:not(.hero-benefit-icon) { min-width: 0; max-width: 15ch; overflow-wrap: anywhere; }
 .hero-benefit:not(:last-child)::after { position: absolute; top: 16%; right: 0; bottom: 16%; width: 1px; background: rgba(19, 143, 145, .27); content: ""; }
 .hero-benefit-icon { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: rgba(221, 247, 243, .9); color: #02a99d; }
 .hero-benefit-icon svg { width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }
@@ -772,11 +773,15 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .shared-search .child-search-entry { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
 .shared-search .child-search-entry .child-entry-label { grid-column: 1; align-self: center; }
 .shared-search .child-search-entry .child-entry-field { min-width: 0; margin: 0; color: #355a54; font-size: .75rem; font-weight: 600; }
-.shared-search .child-search-entry .child-entry-field > span { display: block; min-height: 1.2em; margin-bottom: 5px; }
+.shared-search .child-search-entry .child-entry-field > span, .shared-search .child-search-entry .child-entry-field label > span { display: block; min-height: 1.2em; margin-bottom: 5px; }
+.shared-search .child-entry-field label { display: block; margin: 0; }
 .shared-search .child-search-entry input[type="number"], .shared-search .child-search-entry .child-gender { display: block; width: 100%; min-width: 0; min-height: 41px; padding: 8px 10px; border: 1px solid #dceae6; border-radius: 8px; background-color: #fff; color: var(--ink); font-size: .85rem; }
 .shared-search .child-search-entry .child-gender { padding-right: 28px; }
 .shared-search .child-search-entry input[type="number"]:focus { border-color: #67b9aa; outline: 3px solid rgba(22,127,120,.12); }
-.shared-search .child-search-entry button { grid-column: 2; grid-row: 1; justify-self: end; }
+.shared-search .child-search-entry [data-action="remove-child-age"] { grid-column: 2; grid-row: 1; justify-self: end; }
+.shared-search .child-age-entry .child-gender-clear { display: inline-block; width: auto; height: auto; margin: 5px 0 0; padding: 2px 0; border-radius: 0; color: var(--teal-dark); font-size: .72rem; text-align: left; }
+.shared-search .child-age-entry .child-gender-clear:hover { background: transparent; color: var(--teal-dark); text-decoration: underline; }
+.shared-search .child-age-entry .child-gender-clear[hidden] { display: none; }
 .shared-search .add-child-age { margin-top: 12px; font-size: .8rem; }
 .shared-search .language-options { display: grid; grid-template-columns: 1fr; gap: 4px; }
 .shared-search .language-options label { min-height: 32px; margin: 0; gap: 10px; font-size: .84rem; }
@@ -834,13 +839,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .trip-dialog .shared-search .landing-suggestions[hidden], .trip-dialog .shared-search .landing-map[hidden] { display: none; }
 .trip-dialog .shared-search .child-age-entry { align-items: flex-end; gap: 8px; padding: 12px; }
 .trip-dialog .shared-search .child-age-entry .child-entry-field { flex: 1 1 110px; min-width: 0; margin: 0; color: #355a54; font-size: .75rem; }
-.trip-dialog .shared-search .child-entry-field > span { display: block; margin-bottom: 5px; }
+.trip-dialog .shared-search .child-entry-field > span, .trip-dialog .shared-search .child-entry-field label > span { display: block; margin-bottom: 5px; }
 .trip-dialog .shared-search .child-field-optional { color: #758b85; font-weight: 400; }
 .trip-dialog .shared-search .child-age-entry input[type="number"],
 .trip-dialog .shared-search .child-age-entry .child-gender { display: block; width: 100%; min-width: 0; min-height: 41px; padding: 8px 10px; border: 1px solid #dceae6; border-radius: 8px; background-color: #fff; color: var(--ink); font-size: .85rem; }
 .trip-dialog .shared-search .child-age-entry .child-gender { padding-right: 28px; }
 .trip-dialog .shared-search .child-age-entry input[type="number"]:focus { border-color: #67b9aa; outline: 3px solid rgba(22,127,120,.12); }
-.trip-dialog .shared-search .child-age-entry button { margin-bottom: 4px; }
+.trip-dialog .shared-search .child-age-entry [data-action="remove-child-age"] { margin-bottom: 4px; }
 .trip-dialog .shared-search .language-options label { display: flex; align-items: center; margin: 0; }
 .trip-dialog .shared-search .language-options input { min-height: 0; padding: 0; }
 .shared-search .landing-child-options > label { margin: 0 0 5px; font-size: .78rem; }
@@ -878,7 +883,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .hero-section { background-size: cover; background-position: right bottom; }
   .hero-copy { max-width: 48%; }
   .hero-copy h1 { font-size: clamp(2.1rem, 3.9vw, 3.15rem); }
-  .hero-benefits { width: 60%; }
+  .hero-benefits { width: min(665px, 75%); }
   .hero-benefit { gap: 5px; padding: 5px; font-size: clamp(.68rem, 1.15vw, .75rem); }
   .hero-benefit-icon { width: 34px; height: 34px; font-size: 1.1rem; }
 }

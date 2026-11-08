@@ -126,15 +126,15 @@ function footer() {
 function childEntry(index, trip = false) {
   const age = `<input name="childAge" type="number" min="0" max="18" step="1" inputmode="numeric" placeholder="${translate(language, "ageExample")}" data-i18n-placeholder="ageExample" aria-label="${translate(language, "childAgeLabel", { number: index })}">`;
   const gender = `<select class="form-select form-select-sm child-gender" name="childGender" aria-label="${translate(language, "childGenderLabel", { number: index })}">
-      <option value="" data-i18n="${trip ? "optional" : "anyGender"}">${translate(language, trip ? "optional" : "anyGender")}</option>
+      <option value="" hidden data-i18n="genderUnselected">${translate(language, "genderUnselected")}</option>
       <option value="Junge" data-i18n="genderBoy">${translate(language, "genderBoy")}</option>
       <option value="Mädchen" data-i18n="genderGirl">${translate(language, "genderGirl")}</option>
     </select>`;
   return `<div class="child-age-entry${trip ? "" : " child-search-entry"}">
     <span class="child-entry-label">${translate(language, "childLabel", { number: index })}</span>
     ${trip ? `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
-    <label class="child-entry-field"><span><span data-i18n="gender">${translate(language, "gender")}</span> <span class="child-field-optional" data-i18n="optionalSuffix">${translate(language, "optionalSuffix")}</span></span>${gender}</label>` : `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
-    <label class="child-entry-field"><span data-i18n="gender">${translate(language, "gender")}</span>${gender}</label>`}
+    <div class="child-entry-field"><label><span><span data-i18n="gender">${translate(language, "gender")}</span> <span class="child-field-optional" data-i18n="optionalSuffix">${translate(language, "optionalSuffix")}</span></span>${gender}</label><button class="child-gender-clear" type="button" data-action="clear-child-gender" data-i18n="clearGender" hidden>${translate(language, "clearGender")}</button></div>` : `<label class="child-entry-field"><span data-i18n="ageYears">${translate(language, "ageYears")}</span>${age}</label>
+    <div class="child-entry-field"><label><span data-i18n="gender">${translate(language, "gender")}</span>${gender}</label><button class="child-gender-clear" type="button" data-action="clear-child-gender" data-i18n="clearGender" hidden>${translate(language, "clearGender")}</button></div>`}
     <button type="button" data-action="remove-child-age" aria-label="${translate(language, "removeChildLabel", { number: index })}">${icon("x-lg")}</button>
   </div>`;
 }
@@ -876,7 +876,10 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
       entry.querySelector(".child-entry-label").textContent = translate(language, "childLabel", values);
       entry.querySelector("input").setAttribute("aria-label", translate(language, "childAgeLabel", values));
       entry.querySelector("select").setAttribute("aria-label", translate(language, "childGenderLabel", values));
-      entry.querySelector("button")?.setAttribute("aria-label", translate(language, "removeChildLabel", values));
+      entry.querySelector('[data-action="remove-child-age"]')?.setAttribute("aria-label", translate(language, "removeChildLabel", values));
+      const clearGender = entry.querySelector('[data-action="clear-child-gender"]');
+      clearGender.hidden = !entry.querySelector('select[name="childGender"]').value;
+      clearGender.setAttribute("aria-label", translate(language, "clearChildGender", values));
     });
     const children = [...childAgeList.querySelectorAll(".child-age-entry")].map((entry) => ({
       age: entry.querySelector('input[name="childAge"]').value,
@@ -961,6 +964,13 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
       form.querySelector('[data-action="map"]').setAttribute("aria-expanded", String(shouldOpen));
     }
     if (event.target.closest('[data-action="add-child-age"]')) addChild();
+    const clearGender = event.target.closest('[data-action="clear-child-gender"]');
+    if (clearGender) {
+      const select = clearGender.closest(".child-age-entry").querySelector('select[name="childGender"]');
+      select.value = "";
+      updateSummary();
+      select.focus();
+    }
     const removeButton = event.target.closest('[data-action="remove-child-age"]');
     if (removeButton) {
       removeButton.closest(".child-age-entry").remove();
@@ -1088,7 +1098,7 @@ function setupLandingSearch(form, { fromQuery = true, trip = false } = {}) {
       (trip?.children ?? []).forEach((child, index) => {
         const input = childAgeList.querySelectorAll('input[name="childAge"]')[index] ?? addChild(false);
         input.value = child.age;
-        input.closest(".child-age-entry").querySelector("select").value = child.gender;
+        input.closest(".child-age-entry").querySelector("select").value = child.gender ?? "";
       });
       form.querySelectorAll('input[name="language"]').forEach((input) => {
         input.checked = trip?.languages.includes(input.value) ?? false;

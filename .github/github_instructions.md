@@ -73,10 +73,10 @@ Use Vite/Netlify history fallback configuration so direct navigation and page re
 
 
 ## Builds
-Bitte führe während der laufenden Frontend-Entwicklung nicht nach jeder Änderung automatisch npm run build aus.
+Führe während der laufenden Frontend-Entwicklung nicht nach jeder Änderung automatisch npm run build aus.
 Verwende für die Vorschau den bestehenden Vite-Entwicklungsserver (npm run dev).
 Führe einen Produktionsbuild nur durch, wenn:
--wirklich darum bitte,
+-du explizit aufgefordert wirst,
 -größere technische Änderungen vorgenommen wurden,
 -oder eine Prüfung vor dem Deployment erforderlich ist.
 
